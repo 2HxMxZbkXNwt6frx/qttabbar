@@ -37,7 +37,7 @@ param(
     [string]$Action = 'Status',
     # Which feature bundles to disable (see $AllFeatures). Status and Restore ignore it.
     [ValidateSet('Minimal', 'Pair', 'Full', 'Extended')]
-    [string]$Mode = 'Full',
+    [string]$Mode = 'Pair',
     # Used by the startup task: log only, no console output.
     [switch]$Quiet
 )

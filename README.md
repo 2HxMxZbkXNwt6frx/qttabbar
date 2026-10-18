@@ -62,10 +62,12 @@ Explorer still contains the classic toolbar; recent cumulative updates switch it
 ```powershell
 # elevated PowerShell
 powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action Status
-powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action InstallTask   # apply now and after every update
+powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action Apply -Mode Pair
+# optional: re-apply automatically at startup after a cumulative update puts the overrides back
+powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action InstallTask -Mode Pair
 ```
 
-Restart Windows, then press <kbd>Alt</kbd> in Explorer, right-click the menu bar and tick **QTTabBar** (and **QT ButtonBar**). With the tab bar docked, QTTabBar behaves as on Windows 10 (shortcuts, capturing new windows into tabs, its own back/forward). `-Action Restore` puts the original overrides back. Leave "Enable QTTabBar on every Explorer window" off in this setup - it is only for windows without the toolbar.
+`-Mode` picks which feature bundles to disable: `Minimal` (57048237), `Pair` (57048216 + 57048237, verified on 26300.9711), `Full` (adds 58988972) or `Extended` (adds 57048218/26/31). Child bundles follow their parents, so `Pair` already turns all six off. Restart Windows afterwards (the override store is only read at boot), then turn the bars on: with ExplorerPatcher's Windows 10 ribbon, **View** tab > **Options** (arrow) > **QTTabBar** and **QTTab Standard Buttons**. With the tab bar docked, QTTabBar behaves as on Windows 10 (shortcuts, capturing new windows into tabs, its own back/forward). `-Action Restore` puts the original overrides back. Leave "Enable QTTabBar on every Explorer window" off in this setup - it is only for windows without the toolbar.
 
 Error logs are written to `%APPDATA%\QTTabBar\QTTabBarException.log`.
 
