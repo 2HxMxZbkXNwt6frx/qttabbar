@@ -23,14 +23,14 @@
 
     <?define SkuName = "QTTabBar"?>
     <?define RTMProductVersion="1.5.0" ?>
-    <?define ProductVersion="1.5.9" ?> <!-- Change the last number to the svn revision before release -->
-    <?define VersionString="1.5.9 Beta(2026)" ?> <!-- Change to correct version before release, eg, 2019 1.5.0.0 Beta 1 -->
+    <?define ProductVersion="1.6.4" ?> <!-- Change the last number to the svn revision before release -->
+    <?define VersionString="1.6.4 Beta(2026)" ?> <!-- Change to correct version before release, eg, 2019 1.5.0.0 Beta 1 -->
     <?define UpgradeCode="{ec9baff7-58fb-40cb-9f67-1c438a7524a5}"?> <!-- NEVER CHANGE THIS, EVER!! -->
     <!-- Quizo and Paul Accisano and indiff -->
     <?define Manufacturer="indiff"?>
     <?define ProductCode="*"?>
     <!-- Important: this must be changed -->
-    <?define StrongName="QTTabBar, Version=1.5.9.0, Culture=neutral, PublicKeyToken=973461f1cd23d8eb"?>
+    <?define StrongName="QTTabBar, Version=1.6.4.0, Culture=neutral, PublicKeyToken=973461f1cd23d8eb"?>
     <?define MyLanguage="1033"?>
     <!-- Language code page 1252 1033
 Language                      Locale        Language Code Codepage
@@ -56,7 +56,8 @@ Language="1033"
 
         <Upgrade Id="$(var.UpgradeCode)">
             <UpgradeVersion Minimum="$(var.ProductVersion)" IncludeMinimum="no" OnlyDetect="yes" Property="NEWPRODUCTFOUND" />
-            <UpgradeVersion Minimum="$(var.RTMProductVersion)" IncludeMinimum="yes" OnlyDetect="no" Maximum="$(var.ProductVersion)" IncludeMaximum="no" Property="UPGRADEFOUND" />
+            <!-- IncludeMaximum: a rebuild of the same version (new ProductCode) replaces the installed one. -->
+            <UpgradeVersion Minimum="$(var.RTMProductVersion)" IncludeMinimum="yes" OnlyDetect="no" Maximum="$(var.ProductVersion)" IncludeMaximum="yes" Property="UPGRADEFOUND" />
         </Upgrade>
         <Property Id="NETFRAMEWORK48">
             <RegistrySearch Id="NetFx48FullSearch"
@@ -357,7 +358,9 @@ Language="1033"
       <InstallExecuteSequence>
         <!-- AppSearch must be done before RemoveExistingProducts and before FindRelatedProducts -->
         <AppSearch Sequence="1"></AppSearch>
-        <RemoveExistingProducts After="InstallValidate">PREVIOUSVERSIONSINSTALLED</RemoveExistingProducts>
+        <!-- UPGRADEFOUND is what the Upgrade table above sets; nothing sets PREVIOUSVERSIONSINSTALLED,
+             so old versions used to stay installed next to the new one. -->
+        <RemoveExistingProducts After="InstallValidate">UPGRADEFOUND</RemoveExistingProducts>
       </InstallExecuteSequence>
         
         <InstallUISequence>

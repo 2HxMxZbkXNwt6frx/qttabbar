@@ -40,5 +40,5 @@ using System.Runtime.InteropServices;
 // and stamps the same value into Installer.wxs as StrongName. They must stay in this
 // exact AssemblyVersion("x.y.z.w") shape or the regex silently misses and the MSI ends
 // up registering a strong name the built assembly does not have.
-[assembly: AssemblyVersion("1.6.1.0")]
-[assembly: AssemblyFileVersion("1.6.1.0")]
+[assembly: AssemblyVersion("1.6.4.0")]
+[assembly: AssemblyFileVersion("1.6.4.0")]
