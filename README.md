@@ -55,6 +55,18 @@ On Windows 11, QTTabBar works alongside Explorer's own native tabs rather than s
 - **Double-click** an empty area of a folder to go up one level
 - **Hover previews** of text files and photos/media files
 
+### Getting the full tab bar back on Windows 11 24H2 / 25H2 / 26H2
+
+Explorer still contains the classic toolbar; recent cumulative updates switch it off with feature overrides stored at *ImageOverride* priority, which `ViVeTool /disable` can no longer beat. `Tools\Win11ToolbarFix\Win11ToolbarFix.ps1` removes those overrides (backing them up first) and writes user-priority "disabled" overrides in their place:
+
+```powershell
+# elevated PowerShell
+powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action Status
+powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action InstallTask   # apply now and after every update
+```
+
+Restart Windows, then press <kbd>Alt</kbd> in Explorer, right-click the menu bar and tick **QTTabBar** (and **QT ButtonBar**). With the tab bar docked, QTTabBar behaves as on Windows 10 (shortcuts, capturing new windows into tabs, its own back/forward). `-Action Restore` puts the original overrides back. Leave "Enable QTTabBar on every Explorer window" off in this setup - it is only for windows without the toolbar.
+
 Error logs are written to `%APPDATA%\QTTabBar\QTTabBarException.log`.
 
 ## Build
