@@ -9,7 +9,11 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^\d+\.\d+\.\d+(\.\d+)?$')]
-    [string]$Version
+    [string]$Version,
+    # v143 covers every VS2022 MSVC; pass v145 when only VS2026 Build Tools are installed.
+    [string]$PlatformToolset = 'v143',
+    # Folder containing candle.exe/light.exe. Defaults to %WIX%\bin, then the WiX install folder.
+    [string]$WixDir
 )
 
 $ErrorActionPreference = "Stop"
@@ -51,10 +55,11 @@ Write-Host "Updated $bundleWxs"
 # --- 2. Build every payload the installer packages ---------------------
 
 # On CI, microsoft/setup-msbuild puts msbuild on PATH; locally fall back to the
-# Visual Studio 2022 install.
+# newest Visual Studio 2022+ install.
 $msbuild = (Get-Command msbuild -ErrorAction SilentlyContinue).Source
 if (-not $msbuild) {
-    $msbuild = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\2022\*\MSBuild\Current\Bin\MSBuild.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+    $msbuild = Get-ChildItem "C:\Program Files*\Microsoft Visual Studio\20*\*\MSBuild\Current\Bin\MSBuild.exe" -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\\(2017|2019)\\' } | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
 }
 if (-not $msbuild) { throw "MSBuild.exe not found" }
 
@@ -89,7 +94,7 @@ foreach ($proj in $managedProjects) {
 # on a runner without VS2010 they default to v100 and fail with MSB8020 - force a
 # modern toolset (v143 covers every VS2022+ MSVC). QTHookLib links libMinHook, so
 # build that first for each platform. Win32 -> QTHookLib32.dll, x64 -> ...64.dll.
-$vcProps = @('/p:PlatformToolset=v143', '/p:WindowsTargetPlatformVersion=10.0')
+$vcProps = @("/p:PlatformToolset=$PlatformToolset", '/p:WindowsTargetPlatformVersion=10.0')
 foreach ($plat in @('Win32', 'x64')) {
     & $msbuild "$root\MinHook\libMinHook.vcxproj" /p:Configuration=Release /p:Platform=$plat $vcProps /nologo /v:minimal
     if ($LASTEXITCODE -ne 0) { throw "libMinHook $plat build failed" }
@@ -99,8 +104,12 @@ foreach ($plat in @('Win32', 'x64')) {
 
 # --- 3. Build the MSI ---------------------------------------------------
 
-$wix = Get-ChildItem "C:\Program Files*\WiX Toolset v3.*\bin\candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty DirectoryName
-if (-not $wix) { throw "WiX Toolset v3.x not found (expected under 'WiX Toolset v3.*\bin')" }
+$wix = $WixDir
+if (-not $wix -and $env:WIX -and (Test-Path "$env:WIX\bin\candle.exe")) { $wix = "$env:WIX\bin" }
+if (-not $wix) {
+    $wix = Get-ChildItem "C:\Program Files*\WiX Toolset v3.*\bin\candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty DirectoryName
+}
+if (-not $wix -or -not (Test-Path "$wix\candle.exe")) { throw "WiX Toolset v3.x not found (pass -WixDir, or expected under 'WiX Toolset v3.*\bin')" }
 Push-Location $installerDir
 try {
     New-Item -ItemType Directory -Force -Path "obj\Release", "bin\Release\en-US" | Out-Null
