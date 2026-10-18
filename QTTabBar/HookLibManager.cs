@@ -83,6 +83,8 @@ namespace QTTabBarLib {
 
         private static Boolean LoadedHook = false;
 
+        internal static bool IsLoaded { get { return LoadedHook; } }
+
         public static void Initialize()
         {
             try

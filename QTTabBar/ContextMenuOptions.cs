@@ -94,7 +94,7 @@ namespace QTTabBarLib {
                 // overlapping QTTabBarClass instance and corrupts drag/drop handoff.
                 // A real deskband is only ever instantiated once per window by
                 // Explorer, so mirror that here.
-                if(InstanceManager.GetThreadTabBar() != null) return;
+                if(InstanceManager.GetThreadTabBar() != null || QTTabBarClass.DockedBandOnThread) return;
 
                 QTTabBarClass tabBar = new QTTabBarClass();
                 tabBar.SetSite(new ExplorerSiteAdapter(webBrowser));

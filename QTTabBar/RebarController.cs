@@ -83,14 +83,18 @@ namespace QTTabBarLib {
             structure.cbSize = Marshal.SizeOf(structure);
             structure.fMask = RBBIM.CHILD | RBBIM.ID;
             int num = (int)PInvoke.SendMessage(Handle, RB.GETBANDCOUNT, IntPtr.Zero, IntPtr.Zero);
+            System.Text.StringBuilder bands = new System.Text.StringBuilder();
             for(int i = 0; i < num; i++) {
                 PInvoke.SendMessage(Handle, RB.GETBANDINFO, (IntPtr)i, ref structure);
-                if(PInvoke.GetClassName(structure.hwndChild) == "ToolbarWindow32" && structure.wID == 1) {
+                string cls = PInvoke.GetClassName(structure.hwndChild);
+                bands.AppendFormat(" [{0}: id={1} {2} visible={3}]", i, structure.wID, cls, PInvoke.IsWindowVisible(structure.hwndChild));
+                if(menuController == null && cls == "ToolbarWindow32" && structure.wID == 1) {
                     menuController = new NativeWindowController(structure.hwndChild);
                     menuController.MessageCaptured += MenuMessageCaptured;
-                    break;
                 }
             }
+            // One line per window: which bands Explorer's rebar holds on this Windows build.
+            QTUtility2.flog("RebarController: " + num + " bands, menu band " + (menuController != null ? "found" : "not found") + ":" + bands);
 
             if(Config.Skin.UseRebarBGColor) {
                 if(DefaultRebarCOLORREF == -1) {
@@ -141,6 +145,9 @@ namespace QTTabBarLib {
          * Ensure the menu bar band is correct
          */
         public void EnsureMenuBarIsCorrect() {
+            // No menu band was found (the constructor looks for a ToolbarWindow32 band with
+            // ID 1); nothing to show or hide.
+            if(menuController == null) return;
             bool show = MenuHasFocus || MenuBarShown;
             REBARBANDINFO structure = new REBARBANDINFO();
             structure.cbSize = Marshal.SizeOf(structure);

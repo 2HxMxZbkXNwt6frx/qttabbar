@@ -95,6 +95,12 @@ namespace QTTabBarLib {
                     IWebBrowser2 wb = explorer;
                     ActionDelayer.Add(() => {
                         try {
+                            // Explorer docked the real band in this window's toolbar: that
+                            // instance already does everything this attach would.
+                            if (QTTabBarClass.DockedBandOnThread) {
+                                QTUtility2.flog("AutoLoader: band is docked, not attaching");
+                                return true;
+                            }
                             IntPtr hwnd = (IntPtr)wb.HWND;
                             if (hwnd == IntPtr.Zero || !PInvoke.IsWindowVisible(hwnd)) return false;
                             ContextMenuOptions.AttachToWindow(wb);
@@ -121,10 +127,15 @@ namespace QTTabBarLib {
             string minDate = DateTime.MinValue.ToString();
             using(RegistryKey key = Registry.LocalMachine.OpenSubKey(RegConst.Root)) {
                 installDateString = key == null ? minDate : (string)key.GetValue("InstallDate", minDate);
-                installDate = DateTime.Parse(installDateString);
+                // The installer writes this in its own locale's format; don't let a mismatch
+                // throw out of SetSite and skip the rest of it.
+                if(!DateTime.TryParse(installDateString, out installDate)) return;
             }
             using(RegistryKey key = Registry.CurrentUser.CreateSubKey(RegConst.Root)) {
-                DateTime lastActivation = DateTime.Parse((string)key.GetValue("ActivationDate", minDate));
+                DateTime lastActivation;
+                if(!DateTime.TryParse((string)key.GetValue("ActivationDate", minDate), out lastActivation)) {
+                    lastActivation = DateTime.MinValue;
+                }
                 if(installDate.CompareTo(lastActivation) <= 0) return;
 
                 object secViewBar = new Guid("{d2bf470e-ed1c-487f-a333-2bd8835eb6ce}").ToString("B");

@@ -1240,11 +1240,26 @@ namespace QTTabBarLib {
                 }
                 LogEntryDic.Clear();
                 fFinalRelease = true;
+                if(IsTabBarDocked) DockedBandOnThread = false;
                 base.CloseDW(dwReserved);
             }
             catch(Exception exception2) {
                 QTUtility2.MakeErrorLog(exception2, "tabbar closing");
             }
+        }
+
+        // Set on the thread of an Explorer window whose rebar hosts this band, so AutoLoader
+        // doesn't attach a second, undocked instance to the same window when "Enable QTTabBar
+        // on every Explorer window" is on (it is the only switch for the native hook library).
+        [ThreadStatic]
+        internal static bool DockedBandOnThread;
+
+        public override int SetSite(object pUnkSite) {
+            int hr = base.SetSite(pUnkSite);
+            if(pUnkSite != null && IsTabBarDocked) {
+                DockedBandOnThread = true;
+            }
+            return hr;
         }
 
         private void CloseLeftRight(bool fLeft, int index) {
@@ -1298,7 +1313,7 @@ namespace QTTabBarLib {
                     }
                 }
                 if(e.ClickedItem == tsmiLockToolbar) {
-                    rebarController.Locked = !tsmiLockToolbar.Checked;
+                    if(rebarController != null) rebarController.Locked = !tsmiLockToolbar.Checked;
                 }
                 else if(e.ClickedItem == tsmiMergeWindows) {
                     MergeAllWindows();
@@ -1335,7 +1350,8 @@ namespace QTTabBarLib {
             }
             tsmiExecuted.Enabled = tsmiExecuted.DropDownItems.Count > 0;
             tsmiMergeWindows.Enabled = InstanceManager.GetTotalInstanceCount() > 1;
-            tsmiLockToolbar.Checked = rebarController.Locked;
+            tsmiLockToolbar.Enabled = rebarController != null;
+            tsmiLockToolbar.Checked = rebarController != null && rebarController.Locked;
             if((lstPluginMenuItems_Sys != null) && (lstPluginMenuItems_Sys.Count > 0)) {
                 foreach(ToolStripItem item in lstPluginMenuItems_Sys) {
                     item.Dispose();
@@ -3288,7 +3304,11 @@ namespace QTTabBarLib {
                 if((flags & SBSP.NAVIGATEBACK) != 0) {
                     msg.Result = (IntPtr)1;
                     QTUtility2.log("explorerController_MessageCaptured WM_BROWSEOBJECT: NAVIGATEBACK");
-                    if(!NavigateCurrentTab(true) && CloseTab(CurrentTab, true) && tabControl1.TabCount == 0) {
+                    // With no QTTabBar history left this closes the tab, which is only safe when
+                    // QTTabBar can grey out Explorer's Back button (TravelBand, Windows 10). Windows
+                    // 11's Back button stays enabled, so a press there must not close the tab.
+                    if(!NavigateCurrentTab(true) && TravelToolBarHandle != IntPtr.Zero &&
+                            CloseTab(CurrentTab, true) && tabControl1.TabCount == 0) {
                         WindowUtils.CloseExplorer(ExplorerHandle, 2);
                     }
                 }
@@ -4957,7 +4977,16 @@ namespace QTTabBarLib {
             explorerController = new NativeWindowController(ExplorerHandle);
             explorerController.MessageCaptured += explorerController_MessageCaptured;
             if(ReBarHandle != IntPtr.Zero) {
-                rebarController = new RebarController(this, ReBarHandle, BandObjectSite as IOleCommandTarget);
+                // Don't let an unexpected rebar layout (Windows 11 builds differ) abort the rest
+                // of the setup below: without the controller only rebar skinning and the
+                // lock-toolbar menu item are lost.
+                try {
+                    rebarController = new RebarController(this, ReBarHandle, BandObjectSite as IOleCommandTarget);
+                }
+                catch(Exception ex) {
+                    QTUtility2.MakeErrorLog(ex, "InstallHooks RebarController");
+                    rebarController = null;
+                }
             }
             if(!QTUtility.IsXP) {
                 TravelToolBarHandle = GetTravelToolBarWindow32();
@@ -4966,6 +4995,8 @@ namespace QTTabBarLib {
                     travelBtnController.MessageCaptured += travelBtnController_MessageCaptured;
                 }
             }
+            QTUtility2.flog("InstallHooks: docked=" + IsTabBarDocked + " travelBand=" + (TravelToolBarHandle != IntPtr.Zero) +
+                    " thread=" + System.Threading.Thread.CurrentThread.ManagedThreadId + " hookLib=" + HookLibManager.IsLoaded);
             dropTargetWrapper = new DropTargetWrapper(this);
             dropTargetWrapper.DragFileEnter += dropTargetWrapper_DragFileEnter;
             dropTargetWrapper.DragFileOver += dropTargetWrapper_DragFileOver;
