@@ -822,12 +822,13 @@ namespace QTTabBarLib {
                         case WM.XBUTTONDOWN:
 
                         case WM.XBUTTONUP:
-                            // On Win11 QTTabBar doesn't own navigation - its private travel
-                            // log is a stale copy of whichever native tab it bound to first
-                            // (same reason WM_BROWSEOBJECT bails, and DoBindAction no-ops
-                            // GoBack/GoForward there). Let Explorer handle the X buttons
-                            // natively so back/forward act on the tab the user is actually in.
-                            if(QTUtility.IsWin11) break;
+                            // Without a docked tab bar QTTabBar doesn't own navigation - its
+                            // private travel log is a stale copy of whichever native tab it
+                            // bound to first (same reason WM_BROWSEOBJECT bails, and
+                            // DoBindAction no-ops GoBack/GoForward there). Let Explorer handle
+                            // the X buttons natively so back/forward act on the tab the user
+                            // is actually in.
+                            if(!IsTabBarDocked) break;
                             // Don't use the live MouseButtons state here: by the time
                             // WM.XBUTTONUP arrives the button has already been released,
                             // so MouseButtons would always report None. Decode which
@@ -979,12 +980,12 @@ namespace QTTabBarLib {
         }
 
         private void ClearTravelLogs() {
-            // Win11 native tabs each keep their own travel log and QTTabBar delegates
-            // back/forward straight to Explorer there (its simulated tabs don't render).
-            // Stripping that log to its first entry - which is what this method does, to
-            // keep the old QTTabBar per-tab history from doubling up - leaves Explorer's
-            // Back button nowhere to go but Home. Leave the native log intact on Win11.
-            if(QTUtility.IsWin11) return;
+            // Without a docked tab bar, Win11 native tabs each keep their own travel log and
+            // QTTabBar delegates back/forward straight to Explorer (its simulated tabs don't
+            // render). Stripping that log to its first entry - which is what this method
+            // does, to keep the old QTTabBar per-tab history from doubling up - leaves
+            // Explorer's Back button nowhere to go but Home. Leave the native log intact then.
+            if(!IsTabBarDocked) return;
             IEnumTravelLogEntry ppenum = null;
             try {
                 if((TravelLog.EnumEntries(0x30, out ppenum) != 0) || (ppenum == null)) {
@@ -1771,12 +1772,24 @@ namespace QTTabBarLib {
             base.Dispose(disposing);
         }
 
+        // True when Explorer itself hosts this band in its classic toolbar (rebar), so the
+        // tab bar is really on screen. False when AutoLoader attached us through
+        // ExplorerSiteAdapter, which reports no rebar window: that is the Windows 11 case
+        // where the toolbar is gone and tabs never render. Windows 11 still hosts the
+        // rebar when its toolbar-removal feature overrides are off (see
+        // Tools\Win11ToolbarFix), and then everything works as on Windows 10.
+        // Only meaningful once SetSite has returned (BandObject reads the rebar handle
+        // after OnExplorerAttached).
+        private bool IsTabBarDocked {
+            get { return ReBarHandle != IntPtr.Zero; }
+        }
+
         private bool DoBindAction(BindAction action, bool fRepeat = false, QTabItem tab = null, IDLWrapper item = null) {
-            // Windows 11 has no rebar for the tab bar to dock into (see ContextMenuOptions/
-            // ExplorerSiteAdapter), so tabs and everything tab-related never render there.
+            // Without a rebar for the tab bar to dock into (see ContextMenuOptions/
+            // ExplorerSiteAdapter), tabs and everything tab-related never render.
             // Only allow the two features that work without a visible tab bar: double-click
             // to go up a level, and SubDirTip preview.
-            if(QTUtility.IsWin11 && action != BindAction.UpOneLevel && action != BindAction.ShowSDTSelected) {
+            if(!IsTabBarDocked && action != BindAction.UpOneLevel && action != BindAction.ShowSDTSelected) {
                 return false;
             }
 
@@ -2546,13 +2559,13 @@ namespace QTTabBarLib {
                 // 1. set capture new window
                 // 2. ctrl key not pressed.
                 // 3. instsance count > 0
-                // Not on Windows 11: this folds the new window into a tab elsewhere and
-                // closes it via Explorer.Quit() below, but tabs never render there (see
-                // the DoBindAction gate above) - the window would just vanish with nowhere
-                // visible for its content to go, and worse, the fall-through after
-                // Explorer.Quit() (no return - see the commented-out one two lines down)
-                // re-initializes the closing window, which loops.
-                if (!QTUtility.IsWin11 &&
+                // Only with a docked tab bar: this folds the new window into a tab elsewhere
+                // and closes it via Explorer.Quit() below, but without a rebar tabs never
+                // render (see the DoBindAction gate above) - the window would just vanish
+                // with nowhere visible for its content to go, and worse, the fall-through
+                // after Explorer.Quit() (no return - see the commented-out one two lines
+                // down) re-initializes the closing window, which loops.
+                if (IsTabBarDocked &&
                     Config.Window.CaptureNewWindows &&
                     ModifierKeys != Keys.Control &&
                     InstanceManager.GetTotalInstanceCount() > 0) {
@@ -3263,13 +3276,13 @@ namespace QTTabBarLib {
             if(msg.Msg == WM_BROWSEOBJECT) {
                 SBSP flags = (SBSP)Marshal.ReadInt32(msg.WParam);
                 // Windows 11's native Explorer tabs (22H2+) each keep their own travel
-                // log, and QTTabBar's simulated tabs never render there (see the
-                // DoBindAction gate) - its private history is a stale copy of whichever
-                // native tab it bound to first, so replaying it here navigates the wrong
-                // tab. Leave msg.Result at 0 so the hook (DetourBrowseObject) falls
-                // through to Explorer's own BrowseObject, which runs on the exact tab
-                // the user clicked back/forward in.
-                if(QTUtility.IsWin11 && (flags & (SBSP.NAVIGATEBACK | SBSP.NAVIGATEFORWARD)) != 0) {
+                // log, and without a docked tab bar QTTabBar's simulated tabs never
+                // render (see the DoBindAction gate) - its private history is a stale copy
+                // of whichever native tab it bound to first, so replaying it here navigates
+                // the wrong tab. Leave msg.Result at 0 so the hook (DetourBrowseObject)
+                // falls through to Explorer's own BrowseObject, which runs on the exact
+                // tab the user clicked back/forward in.
+                if(!IsTabBarDocked && (flags & (SBSP.NAVIGATEBACK | SBSP.NAVIGATEFORWARD)) != 0) {
                     return true;
                 }
                 if((flags & SBSP.NAVIGATEBACK) != 0) {
