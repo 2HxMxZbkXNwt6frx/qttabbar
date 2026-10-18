@@ -271,7 +271,7 @@ function Show-Status {
     }
     $backedUp = @(Read-Backup | ForEach-Object { $_.FeatureId } | Sort-Object -Unique)
     Write-Host ''
-    $needsFix = $false; $needsReboot = $false; $blockedAbove = $false
+    $needsFix = $false; $needsReboot = $false; $blockedAbove = $false; $allOff = $true
     # Show every known bundle, not only the ones -Mode selects, so the effect of each mode is visible.
     foreach ($f in $AllFeatures) {
         $running = [QTFeatureNative]::Query([uint32]$f.Id, 1)
@@ -288,11 +288,16 @@ function Show-Status {
         # Anything above User priority other than the ImageOverride we remove wins over our override.
         foreach ($p in $prios) { if ($p -gt $PriorityUser -and $p -ne $PriorityImageOverride) { $blockedAbove = $true } }
         $regOk = ($prios -notcontains $PriorityImageOverride) -and $p8 -and ($p8['EnabledState'] -eq $StateDisabled)
+        # A child bundle can be off at run time through its parent (Definitions\Associations) while
+        # its own ImageOverride key is still there, so what Explorer sees decides first.
+        $off = $running -ge 0 -and ($running -band 0xFF) -eq $StateDisabled
+        if (-not $off) { $allOff = $false }
         if (-not $regOk) { $needsFix = $true }
-        elseif ($running -lt 0 -or ($running -band 0xFF) -ne $StateDisabled) { $needsReboot = $true }
+        elseif (-not $off) { $needsReboot = $true }
     }
     Write-Host ''
     if ($blockedAbove) { Write-Host 'Warning: an override above User priority (9-14) or a policy override exists; this script cannot beat it.' }
+    if ($allOff) { $needsFix = $false; $needsReboot = $false }
     if ($needsFix) { Write-Host "Result: the classic toolbar is blocked. Run -Action Apply -Mode $Mode (elevated), then restart Windows." }
     elseif ($needsReboot) { Write-Host 'Result: registry is fixed; restart Windows to apply it.' }
     else { Write-Host 'Result: OK - the classic toolbar is available to QTTabBar.' }
