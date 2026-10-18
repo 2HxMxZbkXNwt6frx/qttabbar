@@ -573,7 +573,10 @@ namespace QTTabBarLib {
         private void DrawBackground(Graphics g, bool bSelected, bool fHot, Rectangle rctItem, Edges edges, bool fVisualStyle, int index) {
             // add by indiff for dark mode
             Brush rectBrush = null;
-            if (QTUtility.InNightMode)
+            // A tab skin bitmap supplies the whole look and may have transparent areas (e.g.
+            // rounded corners). A solid fill underneath would show through them, so skip it.
+            bool fSkinned = !fVisualStyle && tabImages != null;
+            if (QTUtility.InNightMode && !fSkinned)
             {
                 rectBrush = new SolidBrush(Config.Skin.TabShadActiveColor);
                 // Color light = Color.FromArgb(242, 242, 242);
@@ -594,7 +597,7 @@ namespace QTTabBarLib {
                     rctItem,
                     true);
             }
-            else
+            else if (!fSkinned)
             {
                 QTUtility2.log("QTabControl DrawBackground NormanMode ");
                 rectBrush = SystemBrushes.Control;
