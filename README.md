@@ -42,7 +42,7 @@ Explorer still has a classic toolbar, so enable the bands the normal way: right-
 
 ### Activating on Windows 11
 
-Windows 11 removed the classic Explorer toolbar, so there's no toolbar menu to enable QTTabBar through. Instead, turn on the auto-attach option:
+Current Windows 11 builds hide the classic Explorer toolbar, so there's no toolbar menu to enable QTTabBar through. You can either bring the toolbar back and get the full tab bar (see [the next section](#getting-the-full-tab-bar-back-on-windows-11-24h2--25h2--26h2)), or turn on the auto-attach option for a reduced feature set:
 
 1. Right-click an empty area inside any folder and choose **QTTabBar Options**.
 2. On the **Window** tab, tick **“Enable QTTabBar on every Explorer window (experimental, must restart Explorer)”**.
