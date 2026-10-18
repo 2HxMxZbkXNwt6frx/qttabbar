@@ -1129,6 +1129,10 @@ namespace QTTabBarLib {
                 foreach(var category in categories) {
                     using (var key=Registry.CurrentUser.CreateSubKey(category.keyPath)) {
                         foreach(var setting in category.settings) {
+                            // One malformed value (wrong registry kind, bad JSON, an enum name this
+                            // version doesn't know) must only lose that value, not every setting after
+                            // it and the validation below.
+                            try {
                                 object value = key.GetValue(setting.name);
                                 if (value == null) { continue;}
 
@@ -1163,8 +1167,10 @@ namespace QTTabBarLib {
                                 }
 
                                 setting.property.SetValue(category.categoryObject, value, null);
-
-
+                            }
+                            catch(Exception ex) {
+                                QTUtility2.MakeErrorLog(ex, "ReadConfig " + category.keyPath + "\\" + setting.name);
+                            }
                         }
                     }
                 }

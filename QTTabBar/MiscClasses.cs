@@ -118,7 +118,9 @@ namespace QTTabBarLib {
         }
 
         private static string szToString(RegistryKey rk, string valName) {
-            return "\"" + sanitizeValName(valName) + "\"=\"" + ((string)rk.GetValue(valName)).Replace(@"\", @"\\") + "\"" + NEWLINE;
+            // Escape quotes too: settings stored as JSON contain them, and an unescaped quote
+            // ends the string early when the file is imported.
+            return "\"" + sanitizeValName(valName) + "\"=\"" + sanitizeValName((string)rk.GetValue(valName)) + "\"" + NEWLINE;
         }
 
         private static string expandSzToString(RegistryKey rk, string valName) {
@@ -133,7 +135,7 @@ namespace QTTabBarLib {
         }
 
         private static string sanitizeValName(string str) {
-            return str.Replace(@"\", @"\\");
+            return str.Replace(@"\", @"\\").Replace("\"", "\\\"");
         }
 
         private static string byteArrayToString(byte[] bytes) {
