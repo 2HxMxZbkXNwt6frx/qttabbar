@@ -1026,8 +1026,29 @@ namespace QTTabBarLib {
             }
             catch (Exception e)
             {
-                QTUtility2.MakeErrorLog(e, "DrawTab");
+                QTUtility2.MakeErrorLog(e, "DrawTab" + DescribeDrawState(g));
             }
+        }
+
+        // Which GDI+ object was unusable when drawing failed (a disposed one reports InvalidParameter).
+        private string DescribeDrawState(Graphics g) {
+            Func<Func<object>, string> probe = f => {
+                try {
+                    object o = f();
+                    return o == null ? "null" : o.ToString();
+                }
+                catch(Exception ex) {
+                    return "!" + ex.GetType().Name;
+                }
+            };
+            return " thread=" + System.Threading.Thread.CurrentThread.ManagedThreadId +
+                    " ui=" + (IsHandleCreated && !InvokeRequired) +
+                    " font=" + probe(() => Font.Height) +
+                    " own=" + probe(() => fntOwn == null ? null : (object)fntOwn.Height) +
+                    " bold=" + probe(() => fntBold == null ? null : (object)fntBold.Height) +
+                    " sub=" + probe(() => fntSubText == null ? null : (object)fntSubText.Height) +
+                    " sf=" + probe(() => sfTypoGraphic == null ? null : (object)sfTypoGraphic.FormatFlags) +
+                    " g=" + probe(() => g.ClipBounds);
         }
 
         private static void DrawTextWithShadow(Graphics g, string txt, Color clrTxt, Color clrShdw, Font fnt, RectangleF rct, StringFormat sf) {
@@ -1754,6 +1775,9 @@ namespace QTTabBarLib {
         private void SetFont(Font fnt) {
             Font[] old = { fntOwn, fntBold, fnt_Underline, fntBold_Underline, fntSubText, fntDriveLetter };
             fntOwn = CloneFont(fnt) ?? CloneFont(Control.DefaultFont);
+            // Control.Font keeps its current object when the new one is equal by value (same face
+            // and size), and that old object is disposed below; clear it first so the copy sticks.
+            Font = null;
             Font = fntOwn;
             fntBold = DeriveFont(fntOwn, () => new Font(fntOwn, FontStyle.Bold), "fntBold");
             fnt_Underline = DeriveFont(fntOwn, () => new Font(fntOwn, FontStyle.Underline), "fnt_Underline");
