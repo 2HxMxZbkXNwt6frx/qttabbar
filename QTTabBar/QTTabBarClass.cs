@@ -1802,6 +1802,27 @@ namespace QTTabBarLib {
             get { return ReBarHandle != IntPtr.Zero; }
         }
 
+        private bool fCapturedWindowClosed;
+
+        // A window whose folder was handed to another window's new tab closes itself from
+        // ListView_SelectionChanged, which some views never raise (an empty folder, a slow view):
+        // such a window stayed open with an empty tab bar. Close it shortly after it has navigated
+        // as well; whichever comes first wins.
+        private void ScheduleCapturedWindowClose() {
+            Timer timer = new Timer { Interval = 700 };
+            timer.Tick += (sender, args) => {
+                timer.Stop();
+                timer.Dispose();
+                if(fCapturedWindowClosed || IsDisposed || ExplorerHandle == IntPtr.Zero) return;
+                if(TabCount == 0 || (TabCount == 1 && QTUtility2.IsEmpty(tabControl1.TabPages[0].Text))) {
+                    QTUtility2.log("captured window: closing after navigation");
+                    fCapturedWindowClosed = true;
+                    WindowUtils.CloseExplorer(ExplorerHandle, 2, true);
+                }
+            };
+            timer.Start();
+        }
+
         private static readonly object nightModeLock = new object();
 
         // Re-reads light/dark mode and applies the colour preset (SwitchNighMode skips that when
@@ -3068,6 +3089,7 @@ namespace QTTabBarLib {
                 {
                     Explorer.Quit();
                     WindowUtils.HideExplorer(ExplorerHandle);
+                    ScheduleCapturedWindowClose();
                 }
             }
             else {
@@ -3416,7 +3438,7 @@ namespace QTTabBarLib {
                         // prevents the window from being restored when minimized.
                         // I guess neither has to synchronous anyway, so...
                         BeginInvoke(new Action(() => {
-                            InstanceManager.PushTabBarInstance(this);
+                            if(!fNowQuitting) InstanceManager.PushTabBarInstance(this);   // see InitializeOpenedWindow
                             InstanceManager.RemoveFromTrayIcon(Handle);
                             // While QTTabBar manages the top-level Explorer window (the `CabinetWClass` window), the window can sometimes end up in a bad state:
                             IntPtr hwnd = this.ExplorerHandle;
@@ -4759,7 +4781,11 @@ namespace QTTabBarLib {
          */
         private void InitializeOpenedWindow() {
             IsShown = true;
-            InstanceManager.PushTabBarInstance(this);
+            // The most recently pushed tab bar receives the folders of newly captured windows. A
+            // window that is itself being merged into another (fNowQuitting) still initializes here
+            // (it needs its list view to close itself), but must not become that target, or the
+            // folders opened next go to a window that is about to close and their tabs are lost.
+            if(!fNowQuitting) InstanceManager.PushTabBarInstance(this);
             //  Install hooks
             QTUtility2.log("QTTabBarClass InitializeOpenedWindow  InstallHooks");
             InstallHooks();
@@ -5166,7 +5192,10 @@ namespace QTTabBarLib {
                     // WindowUtils.CloseExplorer(ExplorerHandle, 0);
                     // WindowUtils.CloseExplorer(ExplorerHandle, 1);
                     // WindowUtils.CloseExplorer(ExplorerHandle, 2);
-                    WindowUtils.CloseExplorer(ExplorerHandle, 2, true);
+                    if(!fCapturedWindowClosed) {
+                        fCapturedWindowClosed = true;
+                        WindowUtils.CloseExplorer(ExplorerHandle, 2, true);
+                    }
                     // WindowUtils.CloseExplorer(ExplorerHandle, 3);
                     // MergeAllWindows();
                 }
