@@ -79,6 +79,51 @@ namespace QTTabBarLib {
             }
         }
 
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        private static extern uint PrivateExtractIcons(string lpszFile, int nIconIndex, int cxIcon, int cyIcon,
+                IntPtr[] phicon, uint[] piconid, uint nIcons, uint flags);
+
+        [DllImport("user32.dll")]
+        private static extern bool DestroyIcon(IntPtr hIcon);
+
+        // A button's own icon: "file,index" (index < 0 = resource id, as in .lnk / registry icon
+        // locations) or an image or .ico file. Null when it can't be loaded.
+        public static Bitmap ForIconSpec(string spec, int size) {
+            if(string.IsNullOrEmpty(spec)) return null;
+            try {
+                string file = spec.Trim();
+                int index = 0;
+                int comma = file.LastIndexOf(',');
+                if(comma > 0 && int.TryParse(file.Substring(comma + 1).Trim(), out index)) {
+                    file = file.Substring(0, comma).Trim();
+                }
+                file = Environment.ExpandEnvironmentVariables(file.Trim('"'));
+                if(!System.IO.File.Exists(file)) return null;
+                string ext = System.IO.Path.GetExtension(file).ToLowerInvariant();
+                if(ext == ".png" || ext == ".bmp" || ext == ".jpg" || ext == ".jpeg" || ext == ".gif") {
+                    using(Image image = Image.FromFile(file)) {
+                        return Fit(new Bitmap(image), size);
+                    }
+                }
+                IntPtr[] icons = new IntPtr[1];
+                uint[] ids = new uint[1];
+                uint got = PrivateExtractIcons(file, index, size, size, icons, ids, 1, 0);
+                if(got == 0 || got == 0xFFFFFFFF || icons[0] == IntPtr.Zero) return null;
+                try {
+                    using(Icon icon = Icon.FromHandle(icons[0])) {
+                        return Fit(icon.ToBitmap(), size);
+                    }
+                }
+                finally {
+                    DestroyIcon(icons[0]);
+                }
+            }
+            catch(Exception ex) {
+                QTUtility2.MakeErrorLog(ex, "CommandBarIcons " + spec);
+                return null;
+            }
+        }
+
         // The Groups icon of the standard button bar, scaled to size; the white variant for dark bars.
         public static Bitmap ForGroup(int size, bool light) {
             try {

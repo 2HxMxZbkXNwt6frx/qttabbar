@@ -23,6 +23,7 @@ using System.IO;
 using System.Linq;
 using System.Media;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 using System.Windows.Forms.VisualStyles;
 using BandObjectLib;
@@ -49,7 +50,27 @@ namespace QTTabBarLib {
         private const int ActCopyPath = 14;
         private const int ActEdit = 15;
 
-        private readonly ToolStrip toolStrip;
+        private readonly BarToolStrip toolStrip;
+
+        // ToolStrip raises MouseDown / Move / Up only outside its items; reordering needs them all.
+        private sealed class BarToolStrip : ToolStrip {
+            internal event MouseEventHandler RawMouseDown, RawMouseMove, RawMouseUp;
+
+            protected override void OnMouseDown(MouseEventArgs e) {
+                if(RawMouseDown != null) RawMouseDown(this, e);
+                base.OnMouseDown(e);
+            }
+
+            protected override void OnMouseMove(MouseEventArgs e) {
+                if(RawMouseMove != null) RawMouseMove(this, e);
+                base.OnMouseMove(e);
+            }
+
+            protected override void OnMouseUp(MouseEventArgs e) {
+                if(RawMouseUp != null) RawMouseUp(this, e);
+                base.OnMouseUp(e);
+            }
+        }
         private readonly ContextMenuStripEx barMenu;
         private int menuItemIndex = -1;   // item the context menu was opened on, -1 for the bar
         private IContainer components;
@@ -61,7 +82,7 @@ namespace QTTabBarLib {
 
         protected CommandBarBand() {
             components = new Container();
-            toolStrip = new ToolStrip {
+            toolStrip = new BarToolStrip {
                 Dock = DockStyle.Fill,
                 GripStyle = ToolStripGripStyle.Hidden,
                 ImeMode = ImeMode.Disable,
@@ -72,6 +93,9 @@ namespace QTTabBarLib {
                 Padding = IsVerticalBar ? new Padding(2, 4, 2, 4) : new Padding(2, 0, 2, 0),
             };
             toolStrip.KeyDown += toolStrip_KeyDown;
+            toolStrip.RawMouseDown += toolStrip_MouseDown;
+            toolStrip.RawMouseMove += toolStrip_MouseMove;
+            toolStrip.RawMouseUp += toolStrip_MouseUp;
             barMenu = new ContextMenuStripEx(components, false);
             barMenu.Opening += barMenu_Opening;
             SuspendLayout();
@@ -93,16 +117,37 @@ namespace QTTabBarLib {
             }
             lock(liveBars) liveBars.Add(this);
             Rebuild();
+            try {
+                if(dropTarget == null) {
+                    dropTarget = new DropTargetWrapper(this);
+                    dropTarget.DragFileEnter += dropTarget_DragFileEnter;
+                    dropTarget.DragFileOver += dropTarget_DragFileOver;
+                    dropTarget.DragFileLeave += dropTarget_DragFileLeave;
+                    dropTarget.DragFileDrop += dropTarget_DragFileDrop;
+                }
+            }
+            catch(Exception ex) {
+                QTUtility2.MakeErrorLog(ex, "CommandBarBand drop target");
+            }
         }
 
         public override void CloseDW(uint dwReserved) {
             lock(liveBars) liveBars.Remove(this);
+            DisposeDropTarget();
             ClearItems();
             base.CloseDW(dwReserved);
         }
 
+        private void DisposeDropTarget() {
+            if(dropTarget != null) {
+                dropTarget.Dispose();
+                dropTarget = null;
+            }
+        }
+
         protected override void Dispose(bool disposing) {
             if(disposing) {
+                DisposeDropTarget();
                 lock(liveBars) liveBars.Remove(this);
                 ClearItems();
                 if(components != null) components.Dispose();
@@ -183,7 +228,192 @@ namespace QTTabBarLib {
                 ShowBarMenu(m.LParam);
                 return;
             }
+            if(m.Msg == WM.DROPFILES) {
+                // Files dropped between buttons (DropTargetWrapper passes the HDROP on): add them.
+                AddDroppedFiles(m.WParam);
+                return;
+            }
             base.WndProc(ref m);
+        }
+
+        // ---------------------------------------------------------------- drag and drop
+
+        private DropTargetWrapper dropTarget;
+        private List<string> draggedPaths;
+        private int dropInsertIndex = -1;            // where dropped files become buttons
+        private CommandBarItem dropTargetItem;       // or the button whose target takes the drop
+
+        private static List<string> PathsFromHDrop(IntPtr hDrop) {
+            List<string> paths = new List<string>();
+            uint count = PInvoke.DragQueryFile(hDrop, uint.MaxValue, null, 0);
+            for(uint i = 0; i < count; i++) {
+                StringBuilder sb = new StringBuilder(1024);
+                PInvoke.DragQueryFile(hDrop, i, sb, sb.Capacity);
+                if(sb.Length > 0) paths.Add(sb.ToString());
+            }
+            return paths;
+        }
+
+        private DragDropEffects dropTarget_DragFileEnter(IntPtr hDrop, Point pnt, int grfKeyState) {
+            try {
+                draggedPaths = PathsFromHDrop(hDrop);
+            }
+            catch {
+                draggedPaths = null;
+            }
+            return EffectAt(pnt, grfKeyState);
+        }
+
+        private void dropTarget_DragFileOver(object sender, DragEventArgs e) {
+            e.Effect = EffectAt(new Point(e.X, e.Y), e.KeyState);
+        }
+
+        private void dropTarget_DragFileLeave(object sender, EventArgs e) {
+            draggedPaths = null;
+            dropTargetItem = null;
+            dropInsertIndex = -1;
+        }
+
+        // 0: give the drop to the button's target (the shell copies / moves into a folder, opens the
+        // files with a program); 1: add buttons (WM_DROPFILES comes back to WndProc); -1: nothing.
+        private int dropTarget_DragFileDrop(out IntPtr hwnd, out byte[] idlReal) {
+            hwnd = FrameHandle;
+            idlReal = null;
+            try {
+                if(dropTargetItem != null) {
+                    using(IDLWrapper wrapper = new IDLWrapper(ExpandPath(dropTargetItem.Path))) {
+                        if(wrapper.Available && wrapper.IsDropTarget) {
+                            idlReal = wrapper.IDL;
+                            return 0;
+                        }
+                    }
+                    return -1;
+                }
+                return dropInsertIndex >= 0 ? 1 : -1;
+            }
+            finally {
+                draggedPaths = null;
+                dropTargetItem = null;
+            }
+        }
+
+        // Over the middle of a folder / program button: drop into it (Ctrl copy, Shift move, else as
+        // Explorer: move on the same drive). Elsewhere: create buttons at that position.
+        private DragDropEffects EffectAt(Point screen, int keyState) {
+            dropTargetItem = null;
+            dropInsertIndex = -1;
+            if(draggedPaths == null || draggedPaths.Count == 0) return DragDropEffects.None;
+            Point client = toolStrip.PointToClient(screen);
+            ToolStripItem at = toolStrip.GetItemAt(client);
+            CommandBarItem item = at == null ? null : ItemOf(at);
+            if(item != null && item.Type == CommandBarItemType.File) {
+                Rectangle b = at.Bounds;
+                float pos = IsVerticalBar ? (client.Y - b.Top) / (float)Math.Max(1, b.Height) : (client.X - b.Left) / (float)Math.Max(1, b.Width);
+                if(pos > 0.2f && pos < 0.8f) {
+                    string path = ExpandPath(item.Path);
+                    using(IDLWrapper wrapper = new IDLWrapper(path)) {
+                        if(wrapper.Available && wrapper.IsDropTarget) {
+                            dropTargetItem = item;
+                            if(!wrapper.IsFolder || IsProgram(path)) return DragDropEffects.Copy;
+                            bool sameRoot = string.Equals(SafeRoot(path), SafeRoot(draggedPaths[0]), StringComparison.OrdinalIgnoreCase);
+                            return DropTargetWrapper.MakeEffect(keyState, sameRoot ? 0 : 1);
+                        }
+                    }
+                }
+            }
+            dropInsertIndex = InsertionIndex(client);
+            return DragDropEffects.Link;
+        }
+
+        private static string SafeRoot(string path) {
+            try {
+                return Path.GetPathRoot(path) ?? "";
+            }
+            catch {
+                return "";
+            }
+        }
+
+        // Index in Items before which something dropped / dragged at this point goes.
+        private int InsertionIndex(Point client) {
+            foreach(ToolStripItem button in toolStrip.Items) {
+                if(!(button.Tag is int) || (int)button.Tag < 0) continue;
+                Rectangle b = button.Bounds;
+                bool before = IsVerticalBar ? client.Y < b.Top + b.Height / 2 : client.X < b.Left + b.Width / 2;
+                if(before) return (int)button.Tag;
+            }
+            return (Items ?? new CommandBarItem[0]).Length;
+        }
+
+        private void AddDroppedFiles(IntPtr hDrop) {
+            int index = dropInsertIndex;
+            dropInsertIndex = -1;
+            List<string> paths;
+            try {
+                paths = PathsFromHDrop(hDrop);
+            }
+            catch(Exception ex) {
+                QTUtility2.MakeErrorLog(ex, "CommandBarBand drop");
+                return;
+            }
+            if(paths.Count == 0) return;
+            Save(() => {
+                List<CommandBarItem> list = (Items ?? new CommandBarItem[0]).ToList();
+                int at = index < 0 ? list.Count : Math.Min(index, list.Count);
+                foreach(string path in paths) {
+                    list.Insert(at++, new CommandBarItem { Type = CommandBarItemType.File, Split = Directory.Exists(path), Path = path });
+                }
+                Items = list.ToArray();
+            });
+        }
+
+        // ---------------------------------------------------------------- drag to reorder
+
+        private ToolStripItem pressedItem;
+        private Point pressPoint;
+        private bool reordering;
+        private bool suppressClick;
+
+        private void toolStrip_MouseDown(object sender, MouseEventArgs e) {
+            pressedItem = null;
+            if(e.Button != MouseButtons.Left) return;
+            ToolStripItem at = toolStrip.GetItemAt(e.Location);
+            if(at != null && at.Tag is int && (int)at.Tag >= 0) {
+                pressedItem = at;
+                pressPoint = e.Location;
+            }
+        }
+
+        private void toolStrip_MouseMove(object sender, MouseEventArgs e) {
+            if(pressedItem == null || (e.Button & MouseButtons.Left) == 0) return;
+            if(!reordering) {
+                Size drag = SystemInformation.DragSize;
+                if(Math.Abs(e.X - pressPoint.X) <= drag.Width && Math.Abs(e.Y - pressPoint.Y) <= drag.Height) return;
+                reordering = true;
+            }
+            toolStrip.Cursor = IsVerticalBar ? Cursors.SizeNS : Cursors.SizeWE;
+        }
+
+        private void toolStrip_MouseUp(object sender, MouseEventArgs e) {
+            if(reordering && pressedItem != null) {
+                int from = (int)pressedItem.Tag;
+                int to = InsertionIndex(e.Location);
+                toolStrip.Cursor = Cursors.Default;
+                suppressClick = true;
+                BeginInvoke(new MethodInvoker(() => suppressClick = false));
+                if(to != from && to != from + 1) {
+                    Save(() => {
+                        List<CommandBarItem> list = Items.ToList();
+                        if(from < 0 || from >= list.Count) return;
+                        CommandBarItem moved = list[from];
+                        list.RemoveAt(from);
+                        list.Insert(to > from ? to - 1 : to, moved);
+                        Items = list.ToArray();
+                    });
+                }
+            }
+            reordering = false;
+            pressedItem = null;
         }
 
         // ---------------------------------------------------------------- keyboard
@@ -313,9 +543,9 @@ namespace QTTabBarLib {
                 return new ToolStripSeparator();
             }
             string text = DisplayText(item);
-            Image image = item.Type == CommandBarItemType.Group
+            Image image = CommandBarIcons.ForIconSpec(item.Icon, IconSize) ?? (item.Type == CommandBarItemType.Group
                     ? GroupImage(item)
-                    : CommandBarIcons.ForPath(item.Path, IconSize);
+                    : CommandBarIcons.ForPath(item.Path, IconSize));
             ToolStripItem button;
             if(item.Split) {
                 ToolStripSplitButton split = new ToolStripSplitButton(text, image);
@@ -411,6 +641,7 @@ namespace QTTabBarLib {
         }
 
         private void OnItemClicked(ToolStripItem button, bool middle) {
+            if(reordering || suppressClick) return;   // the press started a drag to reorder
             int index = button.Tag is int ? (int)button.Tag : -1;
             CommandBarItem item = ItemAt(index);
             if(item == null) return;

@@ -595,7 +595,7 @@ function ConvertTo-CmdItemsCanonical([string]$Json) {
     try { $parsed = ConvertFrom-Json $Json } catch { return $Json }
     $items = @($parsed | ForEach-Object { $_ })
     $out = foreach ($i in $items) {
-        $f = foreach ($n in 'Type', 'Split', 'Text', 'Path', 'Args', 'WorkingDir', 'Groups', 'FileAction', 'GroupAction', 'Verb', 'WindowSize') {
+        $f = foreach ($n in 'Type', 'Split', 'Text', 'Path', 'Args', 'WorkingDir', 'Groups', 'FileAction', 'GroupAction', 'Verb', 'WindowSize', 'Icon') {
             $v = $null
             if ($null -ne $i.PSObject.Properties[$n]) { $v = $i.$n }
             if ($v -is [array]) { $v = ($v -join '|') }
@@ -1190,6 +1190,7 @@ function New-CmdItemJson($Item) {
     foreach ($n in 'FileAction', 'GroupAction') { if ([int]$Item[$n] -ne 0) { $p.Add('"' + $n + '":' + ([int]$Item[$n]).ToString($script:Inv)) } }
     if ($Item['Verb']) { $p.Add('"Verb":' + (ConvertTo-JsonText $Item['Verb'])) }
     if ([int]$Item['WindowSize'] -ne 0) { $p.Add('"WindowSize":' + ([int]$Item['WindowSize']).ToString($script:Inv)) }
+    if ($Item['Icon']) { $p.Add('"Icon":' + (ConvertTo-JsonText $Item['Icon'])) }
     return '{' + ($p -join ',') + '}'
 }
 
@@ -1200,11 +1201,16 @@ function ConvertFrom-B2CommandButton($Node) {
     $sub = $Node.GetAttribute('SubType')
     $text = Get-B2Text $Node 'DisplayText'
     $notes = New-Object System.Collections.Generic.List[string]
-    $item = @{ Type = 0; Split = ($sub -eq 'Split' -or $sub -eq 'DropDown'); Text = $text; Path = $null; Args = $null; WorkingDir = $null; Groups = $null; FileAction = 0; GroupAction = 0; Verb = $null; WindowSize = 0 }
+    $item = @{ Type = 0; Split = ($sub -eq 'Split' -or $sub -eq 'DropDown'); Text = $text; Path = $null; Args = $null; WorkingDir = $null; Groups = $null; FileAction = 0; GroupAction = 0; Verb = $null; WindowSize = 0; Icon = $null }
     if ($sub -eq 'DropDown') { $notes.Add('drop-down button: imported as a split button') }
     $children = @($Node.SelectNodes('SubItems/CommandButton')).Count
     if ($children -gt 0) { $notes.Add("$children child items not imported") }
-    if (Get-B2Text $Node 'IconResource') { $notes.Add('custom icon not imported') }
+    # IconResource: '"file", index' (an icon resource) or the path of an image file.
+    $iconRes = Get-B2Text $Node 'IconResource'
+    if ($iconRes) {
+        $m = [regex]::Match($iconRes, '^\s*"?([^",]+?)"?\s*,\s*(-?\d+)\s*$')
+        $item.Icon = $(if ($m.Success) { $m.Groups[1].Value + ',' + $m.Groups[2].Value } else { $iconRes.Trim().Trim('"') })
+    }
     if ((Get-B2Text $Node 'KeyboardShortcut') -match '^-?[1-9]') { $notes.Add('button hotkey not imported') }
     if ((Get-B2Text $Node 'NoImage') -eq 'true') { $notes.Add('text-only in 2048; the fork shows the icon') }
     $label = ((Get-B2Text $Node 'LabelVisibility') -eq 'true')
@@ -2234,7 +2240,7 @@ function Invoke-SelfTest {
         '<CommandBar2nd IconSize="24">' +
         '<CommandButton Type="File" SubType="Split"><DisplayText>PC</DisplayText><IDL>14001F50E04FD020EA3A6910A2D808002B30309D0000</IDL></CommandButton>' +
         '<CommandButton Type="File" SubType="Normal"><DisplayText>c"md</DisplayText><Path>%windir%\system32\cmd.exe</Path><Args><Item>/k</Item><Item>%cd%</Item></Args>' +
-        '<Verb>runas</Verb><Options>0100000000000000000000000101</Options></CommandButton>' +
+        '<Verb>runas</Verb><IconResource>"%SystemRoot%\system32\SHELL32.dll", 133</IconResource><Options>0100000000000000000000000101</Options></CommandButton>' +
         '<CommandButton Type="BuiltIn"><CommandID>0</CommandID></CommandButton>' +
         '<CommandButton Type="Group" SubType="DropDown"><GroupAction>NewTabBackground</GroupAction><LabelVisibility>true</LabelVisibility><Groups><Group>G1</Group><Group>G2</Group></Groups></CommandButton>' +
         '<CommandButton Type="ScriptingCommand"><CommandID>104</CommandID></CommandButton></CommandBar2nd>' +
@@ -2325,7 +2331,7 @@ function Invoke-SelfTest {
     Check 'malformed PIDLs are refused' ($null -eq (ConvertFrom-B2Pidl '0500AABB') -and $null -eq (ConvertFrom-B2Pidl 'ZZ') -and $null -eq (ConvertFrom-B2Pidl '0200')) ''
     $cexp = [ordered]@{
         'CmdBars.SecondBarItems' = '[{"Type":0,"Split":true,"Text":"PC","Path":"' + $pcName + '"},' +
-            '{"Type":0,"Split":false,"Text":"c\"md","Path":"%windir%\\system32\\cmd.exe","Args":"/k","WorkingDir":"%cd%","Verb":"runas","WindowSize":1},' +
+            '{"Type":0,"Split":false,"Text":"c\"md","Path":"%windir%\\system32\\cmd.exe","Args":"/k","WorkingDir":"%cd%","Verb":"runas","WindowSize":1,"Icon":"%SystemRoot%\\system32\\SHELL32.dll,133"},' +
             '{"Type":2,"Split":false},{"Type":1,"Split":true,"Groups":["G1","G2"],"GroupAction":2}]'
         'CmdBars.VerticalBarItems' = '[{"Type":0,"Split":false,"Path":"C:\\Windows","FileAction":3}]'
         'CmdBars.SecondBarIconSize' = 24; 'CmdBars.VerticalBarIconSize' = 256

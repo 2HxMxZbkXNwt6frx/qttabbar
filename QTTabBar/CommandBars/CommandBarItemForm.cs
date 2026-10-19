@@ -29,6 +29,7 @@ namespace QTTabBarLib {
         private readonly TextBox txtPath = new TextBox();
         private readonly TextBox txtArgs = new TextBox();
         private readonly TextBox txtDir = new TextBox();
+        private readonly TextBox txtIcon = new TextBox();
         private readonly CheckBox chkSplit = new CheckBox();
         private readonly CheckBox chkAdmin = new CheckBox();
         private readonly ComboBox cmbAction = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList };
@@ -91,8 +92,12 @@ namespace QTTabBarLib {
                 chkAdmin.Checked = string.Equals(item.Verb, "runas", StringComparison.OrdinalIgnoreCase);
                 table.Controls.Add(chkAdmin, 1, table.RowCount++);
             }
+            Button browseIcon = new Button { Text = "...", Width = 32, AutoSize = false };
+            browseIcon.Click += (s, e) => BrowseIcon();
+            AddRow(table, ja ? "アイコン (空欄で自動):" : "Icon (empty = automatic):", txtIcon, browseIcon);
+            txtIcon.Text = item.Icon ?? "";
             chkSplit.Text = group
-                    ? (ja ? "▼ でグループの項目を表示" : "Show the group's folders under the arrow")
+                    ?(ja ? "▼ でグループの項目を表示" : "Show the group's folders under the arrow")
                     : (ja ? "▼ でフォルダーの中身を表示" : "Show the folder's contents under the arrow");
             chkSplit.AutoSize = true;
             chkSplit.Checked = item.Split;
@@ -125,8 +130,20 @@ namespace QTTabBarLib {
             }
         }
 
+        // An image / .ico file, or an icon resource of an .exe / .dll (its first icon; the index can be
+        // edited after the comma).
+        private void BrowseIcon() {
+            using(OpenFileDialog dialog = new OpenFileDialog { CheckFileExists = true, DereferenceLinks = false,
+                    Filter = "Icons, images, programs|*.ico;*.png;*.bmp;*.jpg;*.gif;*.exe;*.dll|*.*|*.*" }) {
+                if(dialog.ShowDialog(this) != DialogResult.OK) return;
+                string ext = System.IO.Path.GetExtension(dialog.FileName).ToLowerInvariant();
+                txtIcon.Text = ext == ".exe" || ext == ".dll" ? dialog.FileName + ",0" : dialog.FileName;
+            }
+        }
+
         private void Apply() {
             item.Text = txtLabel.Text.Trim();
+            item.Icon = txtIcon.Text.Trim().Length > 0 ? txtIcon.Text.Trim() : null;
             item.Split = chkSplit.Checked;
             if(item.Type == CommandBarItemType.Group) {
                 item.Groups = lstGroups.CheckedItems.Cast<string>().ToArray();

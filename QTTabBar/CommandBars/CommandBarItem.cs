@@ -83,6 +83,10 @@ namespace QTTabBarLib {
         [DataMember] public string Verb { get; set; }
         [DataMember] public int WindowSize { get; set; }
 
+        // Custom icon instead of the target's: "file,index" (an icon resource, e.g.
+        // "%SystemRoot%\system32\shell32.dll,133") or an image / .ico file. Empty: the target's icon.
+        [DataMember] public string Icon { get; set; }
+
         public CommandBarItem Clone() {
             CommandBarItem item = (CommandBarItem)MemberwiseClone();
             if(Groups != null) item.Groups = (string[])Groups.Clone();
