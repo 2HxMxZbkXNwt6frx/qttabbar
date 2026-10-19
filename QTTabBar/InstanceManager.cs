@@ -410,6 +410,8 @@ namespace QTTabBarLib {
             const string PipeName = "QTTabBarPipe";
             string address = "net.pipe://localhost/" + PipeName + desktopPID;
             Thread thread = null;
+            bool done = false;
+            Exception connectError = null;
 
             // WFC channels should never be opened on any thread that has a message loop!
             // Otherwise reentrant calls will deadlock, for some reason.
@@ -451,9 +453,13 @@ namespace QTTabBarLib {
                     }
                 }
                 catch(EndpointNotFoundException e) {
-                    QTUtility2.MakeErrorLog( e, "Initialize commClient endpoint not found!" );
+                    // Logged below, not here: logging uses QTUtility, whose static constructor is
+                    // what waits for this thread on the first call - both would wait forever (this
+                    // process is not the server, e.g. a folder window in a process of its own).
+                    connectError = e;
                 }
                 lock(thread) {
+                    done = true;   // the pulse may come before the wait starts
                     Monitor.Pulse(thread);
                 }
                 // Yes, we can just let the thread die here.
@@ -461,8 +467,11 @@ namespace QTTabBarLib {
             });
             thread.Start();
             lock(thread) {
-                Monitor.Wait(thread);
-            }            
+                while(!done) Monitor.Wait(thread);
+            }
+            if(connectError != null) {
+                QTUtility2.MakeErrorLog(connectError, "Initialize commClient endpoint not found!");
+            }
         }
 
         /// <summary>
