@@ -54,6 +54,7 @@ namespace QTTabBarLib {
         internal event ItemActivatedHandler SelectionActivated;        // OK
         internal event ItemCountChangedHandler ItemCountChanged;  // OK
         internal event MiddleClickHandler MiddleClick;            // OK
+        internal event MiddleClickHandler MiddleClickWanted;      // whether MiddleClick would act there
         internal event MouseActivateHandler MouseActivate;        // OK
         internal event SelectionChangedHandler SelectionChanged;  // OK
         internal event EventHandler SubDirTip_MenuClosed;
@@ -84,6 +85,7 @@ namespace QTTabBarLib {
         private Timer timer_HoverSubDirTipMenu;
         private Timer timer_Thumbnail;
         protected bool fDragging;
+        private bool fMiddleClickTaken;     // the middle button down was kept from Explorer
 
         // private IntPtr hwndListView;
         private static string BG_IMG = Environment.GetEnvironmentVariable("ProgramData") + @"\QTTabBar\Image\bgImage.png";
@@ -784,9 +786,22 @@ namespace QTTabBarLib {
                     }
                     break;
                 
+                case WM.MBUTTONDOWN:
+                    // Explorer acts on the button down itself - it opens a folder middle-clicked
+                    // with Shift or Ctrl in this tab, or in a native tab - so keep the whole click
+                    // from it where ours does something.
+                    fMiddleClickTaken = MiddleClickWanted != null && MiddleClickWanted(QTUtility2.PointFromLPARAM(msg.LParam));
+                    if(fMiddleClickTaken) {
+                        SetFocus();   // as the click would (view commands such as Select all need it)
+                        return true;
+                    }
+                    break;
+
                 case WM.MBUTTONUP:
-                    if(MiddleClick != null) {
-                        MiddleClick(QTUtility2.PointFromLPARAM(msg.LParam));
+                    if(MiddleClick != null && MiddleClick(QTUtility2.PointFromLPARAM(msg.LParam)) || fMiddleClickTaken) {
+                        fMiddleClickTaken = false;
+                        if(PInvoke.GetCapture() == msg.HWnd) PInvoke.ReleaseCapture();
+                        return true;
                     }
                     break;
 

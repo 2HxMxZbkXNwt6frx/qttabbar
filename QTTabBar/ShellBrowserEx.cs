@@ -347,10 +347,30 @@ namespace QTTabBarLib {
                                             SVSIF.FOCUSED);
         }
 
-        // Selects every item, as the view's own Select all command does.
+        // Selects every item, in one call (one at a time, each selection change would reach the
+        // tab bar). The view's own Select all command (WM_COMMAND 0x7021) does nothing on recent
+        // builds, like its other command ids.
         public void SelectAll() {
-            const int FCIDM_SHVIEW_SELECTALL = 0x7021;
-            SendViewCommand(FCIDM_SHVIEW_SELECTALL);
+            if(folderView == null) return;
+            int count;
+            if(folderView.ItemCount(SVGIO.ALLVIEW, out count) != 0 || count == 0) return;
+            IntPtr[] pidls = new IntPtr[count];
+            int n = 0;
+            IntPtr array = IntPtr.Zero;
+            try {
+                for(int i = 0; i < count; i++) {
+                    IntPtr pidl;
+                    if(folderView.Item(i, out pidl) == 0 && pidl != IntPtr.Zero) pidls[n++] = pidl;
+                }
+                if(n == 0) return;
+                array = Marshal.AllocCoTaskMem(IntPtr.Size * n);
+                Marshal.Copy(pidls, 0, array, n);
+                folderView.SelectAndPositionItems((uint)n, array, IntPtr.Zero, SVSIF.SELECT);
+            }
+            finally {
+                if(array != IntPtr.Zero) Marshal.FreeCoTaskMem(array);
+                for(int i = 0; i < n; i++) PInvoke.CoTaskMemFree(pidls[i]);
+            }
         }
 
         // Creates a folder in the current folder and starts renaming it: the "NewFolder" verb of the
@@ -411,19 +431,6 @@ namespace QTTabBarLib {
             }
             finally {
                 PInvoke.CoTaskMemFree(pidl);
-            }
-        }
-
-        private void SendViewCommand(int id) {
-            IShellView shellView = folderView as IShellView;
-            if(shellView == null) return;
-            try {
-                IntPtr hwnd;
-                shellView.GetWindow(out hwnd);
-                if(hwnd != IntPtr.Zero) PInvoke.SendMessage(hwnd, WM.COMMAND, (IntPtr)id, IntPtr.Zero);
-            }
-            catch(COMException e) {
-                QTUtility2.MakeErrorLog(e, "ShellBrowserEx view command " + id);
             }
         }
 

@@ -359,7 +359,16 @@ namespace QTTabBarLib {
         }
 
         public IDLWrapper ResolveTargetIfLink() {
-            return IsLink ? new IDLWrapper(ShellMethods.GetLinkTargetIDL(Path)) : null;
+            if(!IsLink) return null;
+            // A folder pinned to Quick access / Home: its path is the target itself.
+            if(IsLinkedFolderPath) return new IDLWrapper(Path);
+            return new IDLWrapper(ShellMethods.GetLinkTargetIDL(Path));
+        }
+
+        // Folders pinned to Quick access / Home carry the link attribute, yet their path is the
+        // folder itself, not a .lnk file (reading it as one fails with access denied).
+        private bool IsLinkedFolderPath {
+            get { return IsLink && DirectoryExists(Path); }
         }
         
         public static void SaveCache(RegistryKey rkUser) {
@@ -612,7 +621,7 @@ namespace QTTabBarLib {
             get {
                 bool flag = false;
                 try {
-                    if(!IsLink) {
+                    if(!IsLink || IsLinkedFolderPath) {
                         return false;
                     }
                     string linkTargetPath = ShellMethods.GetLinkTargetPath(Path);

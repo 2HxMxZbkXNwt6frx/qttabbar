@@ -646,6 +646,14 @@ namespace QTTabBarLib {
             }
         }
 
+        // True when another tab bar in this process lives in the same Explorer frame: then the
+        // caller's browser is a native Windows 11 tab of that window, not a window of its own.
+        public static bool HasOtherTabBarInFrame(QTTabBarClass tabbar, IntPtr frame) {
+            using(new Keychain(rwLockTabBar, false)) {
+                return dictTabInstances.Values.Any(t => t != null && t != tabbar && t.ExplorerFrame == frame);
+            }
+        }
+
         /// <summary>
         /// Gets the total number of instances
         /// </summary>

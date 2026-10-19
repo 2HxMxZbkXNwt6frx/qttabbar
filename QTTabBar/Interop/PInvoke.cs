@@ -401,6 +401,8 @@ namespace QTTabBarLib.Interop {
         [DllImport("user32.dll")]
         public static extern bool ReleaseCapture();
         [DllImport("user32.dll")]
+        public static extern IntPtr GetCapture();
+        [DllImport("user32.dll")]
         public static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
         [DllImport("ole32.dll")]
         public static extern void ReleaseStgMedium(ref STGMEDIUM pmedium);

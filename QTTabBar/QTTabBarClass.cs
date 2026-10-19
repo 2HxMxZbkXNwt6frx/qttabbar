@@ -625,8 +625,19 @@ namespace QTTabBarLib {
 
                         
                         */
+                        case WM.MBUTTONDOWN:
+                        case WM.MBUTTONDBLCLK:
+                            // Windows 11 opens a folder middle-clicked in the navigation pane in a
+                            // native tab of this window, which QTTabBar then takes for a new window
+                            // and closes - with Quit, which closes every native tab, so the whole
+                            // window. Keep middle clicks from the tree; button up handles them.
+                            if(IsNavigationTree(msg.hwnd)) {
+                                Marshal.StructureToPtr(new MSG(), lParam, false);
+                            }
+                            break;
                         case WM.MBUTTONUP:
-                            if (!Explorer.Busy) // && !Config.NoMidClickTree
+                            if(!IsNavigationTree(msg.hwnd)) break;
+                            if(wParam == (IntPtr)1 /* PM_REMOVE */ && !Explorer.Busy) // && !Config.NoMidClickTree
                             {
                                 QTUtility2.log("CallbackGetMsgProc MBUTTONUP NoMidClickTree");
                                 /*
@@ -664,6 +675,7 @@ namespace QTTabBarLib {
                                 */
                                 Handle_MButtonUp_Tree(msg);
                             }
+                            Marshal.StructureToPtr(new MSG(), lParam, false);
                             break;
                         case WM.SYSCOLORCHANGE:
                             // Every Explorer window gets this; only refresh all windows when
@@ -2654,7 +2666,13 @@ namespace QTTabBarLib {
                 // with nowhere visible for its content to go, and worse, the fall-through
                 // after Explorer.Quit() (no return - see the commented-out one two lines
                 // down) re-initializes the closing window, which loops.
+                // A native Windows 11 tab of an already open window (Open in new tab, a middle click
+                // Explorer handled itself, ...) is not a new window: capturing it would end with
+                // Explorer.Quit, which closes the whole window with every native tab in it.
+                bool nativeTabOfOpenWindow = ExplorerHandle != IntPtr.Zero && InstanceManager.HasOtherTabBarInFrame(this, ExplorerHandle);
+                if(nativeTabOfOpenWindow) QTUtility2.log("DoFirstNavigation: native tab of an open window, not captured");
                 if (IsTabBarDocked &&
+                    !nativeTabOfOpenWindow &&
                     Config.Window.CaptureNewWindows &&
                     ModifierKeys != Keys.Control &&
                     InstanceManager.GetTotalInstanceCount() > 0) {
@@ -3904,92 +3922,9 @@ namespace QTTabBarLib {
                         }*/
                     }
 
-                    if (pidl != null && pidl != IntPtr.Zero) {
+                    if (pidl != IntPtr.Zero) {
                         QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree pidl " + pidl);
-                        MouseChord chord = QTUtility.MakeMouseChord(MouseChord.Middle, ModifierKeys);
-                        BindAction action;
-                        
-                        Keys modKeys = ModifierKeys;
-                        // QTUtility2.InitializeTemporaryPaths();
-                        bool fBlockSelecting = modKeys == Keys.Shift;
-                        bool fCtrl = modKeys == Keys.Control;
-                        using (IDLWrapper wrapper = new IDLWrapper(pidl))
-                        {
-                            if (!wrapper.Available) return;
-                            if (wrapper.IsFolder && wrapper.IsReadyIfDrive)
-                            {
-                                // blockSelecting
-                                NavigatedByCode = true;
-                                fNowTravelByTree = false; // Would cause an extra tab to open, by indiff
-                               // OpenNewTab(wrapper, true);
-
-                               if (Config.Mouse.ItemActions.TryGetValue(chord, out action))
-                               {
-                                   if (action == BindAction.ItemOpenInNewTab)
-                                   {
-                                       OpenNewTab(wrapper, false);
-                                       QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree BindAction.ItemOpenInNewTab");
-                                   }
-                                   else if (action == BindAction.ItemOpenInNewTabNoSel)
-                                   {
-                                       OpenNewTab(wrapper, true);
-                                       QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree BindAction.ItemOpenInNewTabNoSel");
-                                   }
-                               }
-                               else
-                               {
-                                   if (fCtrl)
-                                   {
-                                       OpenNewTab(wrapper, true);
-                                   }
-                                   else
-                                   {
-                                       OpenNewTab(wrapper, false);
-                                   }
-                               }
-                               QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree IsFolder IsReadyIfDrive " + wrapper.Path);
-                            } else if (wrapper.IsLink){
-                                if (wrapper.IsLinkToDeadFolder)
-                                {
-                                    QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree wrapper.IsLinkToDeadFolder");
-                                    return;
-                                }
-                                using (IDLWrapper idlwTarget = new IDLWrapper(ShellMethods.GetLinkTargetIDL(wrapper.Path)))
-                                {
-                                    if (idlwTarget.IsFolder && idlwTarget.IsReadyIfDrive)
-                                    {
-                                        NavigatedByCode = true;
-                                        fNowTravelByTree = false; // Would cause an extra tab to open, by indiff
-                                        if (Config.Mouse.ItemActions.TryGetValue(chord, out action))
-                                        {
-                                            if (action == BindAction.ItemOpenInNewTab)
-                                            {
-                                                OpenNewTab(wrapper, false);
-                                                QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree BindAction.ItemOpenInNewTab");
-                                            }
-                                            else if (action == BindAction.ItemOpenInNewTabNoSel)
-                                            {
-                                                OpenNewTab(wrapper, true);
-                                                QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree BindAction.ItemOpenInNewTabNoSel");
-                                            }
-                                        }
-                                        else
-                                        {
-                                            if (fCtrl)
-                                            {
-                                                // StaticReg.CreateWindowIDLs.Add(wrapper.IDL);
-                                                OpenNewTab(wrapper, true);
-                                            }
-                                            else
-                                            {
-                                                OpenNewTab(wrapper, false);
-                                            }
-                                        }
-                                        QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree IsLink GetLinkTargetIDL" + wrapper.Path);
-                                    }
-                                }
-                            }
-                        }
+                        RunTreeMiddleClick(pidl);
                     }
                     /*QTUtility2.log("QTTabBarClass Handle_MButtonUp_Tree wParam " + wParam);
                     int num = (int)PInvoke.SendMessage(msg.hwnd, 0x1127, wParam, (IntPtr)2);
@@ -4007,6 +3942,34 @@ namespace QTTabBarLib {
             }
         }
         #endregion
+
+        // A middle click in the navigation pane (kept from the tree by the message hook): run the
+        // item binding for the chord, as a middle click in the file list does. The default (no
+        // binding) is a new tab, Ctrl: a background tab.
+        private void RunTreeMiddleClick(IntPtr pidl) {
+            using(IDLWrapper wrapper = new IDLWrapper(pidl)) {
+                if(!wrapper.Available) return;
+                Keys modKeys = ModifierKeys;
+                BindAction action;
+                if(!Config.Mouse.ItemActions.TryGetValue(QTUtility.MakeMouseChord(MouseChord.Middle, modKeys), out action)) {
+                    action = modKeys == Keys.Control ? BindAction.ItemOpenInNewTabNoSel : BindAction.ItemOpenInNewTab;
+                }
+                if(action == BindAction.ItemOpenInNewTab || action == BindAction.ItemOpenInNewTabNoSel || action == BindAction.ItemOpenInNewWindow) {
+                    NavigatedByCode = true;
+                    fNowTravelByTree = false;   // would open an extra tab
+                }
+                DoBindAction(action, false, null, wrapper);
+            }
+        }
+
+        // The navigation pane's tree in this window.
+        private bool IsNavigationTree(IntPtr hwnd) {
+            return hwnd != IntPtr.Zero && ExplorerHandle != IntPtr.Zero &&
+                    PInvoke.IsChild(ExplorerHandle, hwnd) && PInvoke.GetClassName(hwnd) == "SysTreeView32";
+        }
+
+        // The Explorer frame (CabinetWClass) of this tab bar.
+        internal IntPtr ExplorerFrame { get { return ExplorerHandle; } }
 
         [Flags]
         public enum ProcessAccessFlags : uint
@@ -5271,8 +5234,9 @@ namespace QTTabBarLib {
             MouseChord chord = QTUtility.MakeMouseChord(MouseChord.Middle, ModifierKeys);
             BindAction action;
             if(Config.Mouse.MarginActions.TryGetValue(chord, out action)) {
-                QTUtility2.log("ListView_MiddleClick " + action);
-                if(listView.PointIsBackground(pt, false)) {
+                bool background = listView.PointIsBackground(pt, false);
+                QTUtility2.log("ListView_MiddleClick " + action + " background " + background);
+                if(background) {
                     return DoBindAction(action);
                 }
             }
@@ -5287,6 +5251,19 @@ namespace QTTabBarLib {
                 }
             }
             return false;
+        }
+
+        // Whether ListView_MiddleClick would act at pt.
+        private bool ListView_MiddleClickWanted(Point pt) {
+            MouseChord chord = QTUtility.MakeMouseChord(MouseChord.Middle, ModifierKeys);
+            BindAction action;
+            if(Config.Mouse.MarginActions.TryGetValue(chord, out action) && listView.PointIsBackground(pt, false)) {
+                QTUtility2.log("ListView_MiddleClickWanted background " + action);
+                return true;
+            }
+            bool item = Config.Mouse.ItemActions.TryGetValue(chord, out action) && listView.HitTest(pt, false) > -1;
+            QTUtility2.log("ListView_MiddleClickWanted item " + item);
+            return item;
         }
 
         private bool ListView_MouseActivate(ref int result) {
@@ -5379,6 +5356,8 @@ namespace QTTabBarLib {
                     elvc.SelectionChanged += ListView_SelectionChanged;
                     elvc.MiddleClick -= ListView_MiddleClick;
                     elvc.MiddleClick += ListView_MiddleClick;
+                    elvc.MiddleClickWanted -= ListView_MiddleClickWanted;
+                    elvc.MiddleClickWanted += ListView_MiddleClickWanted;
                     elvc.DoubleClick -= ListView_DoubleClick;
                     elvc.DoubleClick += ListView_DoubleClick;
                     elvc.EndLabelEdit -= ListView_EndLabelEdit;
