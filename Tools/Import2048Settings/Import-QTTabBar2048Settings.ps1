@@ -54,7 +54,7 @@
         replaces them with its light/dark preset whenever an Explorer window opens.
         Skin\ToolBarTextColor (no 2048 equivalent) is derived for contrast with the toolbar colour.
       - An empty <TabFont> means the 2048 default font: "Yu Gothic UI" on a ja-JP UI, else "Segoe UI".
-      - Tab history / recent file counts are clamped to the fork's 1..30.
+      - Tab history / recent file counts are clamped to the fork's 1..128.
       - 2048 sections that 2048 itself never reads (e.g. CommandBar_LockMenu) are ignored.
 
     Restore: double-click the backup .reg file (or 'reg import <file>'); if there was no
@@ -257,8 +257,8 @@ $script:ForkButtonNames = @('Separator', 'Back', 'Forward', 'Groups', 'RecentTab
 $script:Clamps = @{
     'Tips.PreviewMaxWidth'   = @(128, 1920)
     'Tips.PreviewMaxHeight'  = @(96, 1200)
-    'Misc.TabHistoryCount'   = @(1, 30)
-    'Misc.FileHistoryCount'  = @(1, 30)
+    'Misc.TabHistoryCount'   = @(1, 128)
+    'Misc.FileHistoryCount'  = @(1, 128)
     'Misc.NetworkTimeout'    = @(0, 120)
     'Skin.TabHeight'         = @(10, 50)
     'Skin.TabMinWidth'       = @(10, 100)
@@ -2256,7 +2256,7 @@ function Invoke-SelfTest {
         'Skin.RebarStretchMode' = 'Full'; 'Skin.RebarImageSeperateBars' = 1; 'Skin.SkinAutoColorChangeClose' = 1
         'Skin.TabTextActiveColor' = (New-ColorJson -1)
         'Skin.TabTextFont' = (New-FontJson 'Segoe UI' 9 0); 'Skin.TabSizeMargin' = (New-PaddingJson 1 2 3 4)
-        'Keys.UseTabSwitcher' = 0; 'Misc.AutoUpdate' = 0; 'Misc.TabHistoryCount' = 30; 'Tips.PreviewMaxWidth' = 1920
+        'Keys.UseTabSwitcher' = 0; 'Misc.AutoUpdate' = 0; 'Misc.TabHistoryCount' = 128; 'Tips.PreviewMaxWidth' = 1920
         'Tweaks.ToggleFullRowSelect' = 0; 'BBar.ShowButtonLabels' = 0; 'BBar.LargeButtons' = 0; 'BBar.ButtonIndexes' = '[3,20,21]'
         'Desktop.FirstItem' = 0; 'Desktop.SecondItem' = 1; 'Desktop.ThirdItem' = 3; 'Desktop.FourthItem' = 2; 'Desktop.IncludeGroup' = 1
     }
