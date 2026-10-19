@@ -76,6 +76,7 @@ namespace QTTabBarLib {
                 // Explorer never hosts the toolbar), InstanceManager/Config/etc. are
                 // never set up, so force it before checking the setting below.
                 System.Runtime.CompilerServices.RuntimeHelpers.RunClassConstructor(typeof(QTUtility).TypeHandle);
+                QTCommandBarVertical.EnsureExplorerBarCacheIncludesThis();
                 // Windows 10 still has a real toolbar rebar - users enable QTTabBar (and
                 // separately QTButtonBar, if they only want one of the two) through
                 // Explorer's own View > Toolbars menu there, same as any other classic

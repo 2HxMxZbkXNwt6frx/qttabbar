@@ -494,7 +494,7 @@ namespace QTTabBarLib.Interop {
         public static extern IntPtr SHBrowseForFolder(ref BROWSEINFO lpbi);
         [DllImport("shell32.dll")]
         public static extern int SHCreateShellItem(IntPtr pidlParent, IShellFolder psfParent, IntPtr pidl, out IShellItem ppsi);
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
         public static extern bool ShellExecuteEx(ref SHELLEXECUTEINFO lpExecInfo);
         public static int SHFileOperation(ref SHFILEOPSTRUCT lpFileOp) {
             if(IntPtr.Size == 4) {

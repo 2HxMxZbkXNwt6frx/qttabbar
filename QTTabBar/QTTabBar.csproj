@@ -120,6 +120,17 @@
     <Compile Include="ActionDelayer.cs" />
     <Compile Include="AppsManager.cs" />
     <Compile Include="AutoLoader.cs" />
+    <Compile Include="CommandBars\CommandBarBand.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
+    <Compile Include="CommandBars\CommandBarIcons.cs" />
+    <Compile Include="CommandBars\CommandBarItem.cs" />
+    <Compile Include="CommandBars\CommandBarItemForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="CommandBars\QTCommandBars.cs">
+      <SubType>UserControl</SubType>
+    </Compile>
     <Compile Include="ContextMenuOptions.cs" />
     <Compile Include="ExplorerSiteAdapter.cs" />
     <Compile Include="AutomationClasses.cs" />

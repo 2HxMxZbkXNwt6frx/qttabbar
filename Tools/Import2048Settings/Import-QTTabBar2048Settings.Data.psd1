@@ -337,6 +337,11 @@
             'ButtonIndexes:int[]', 'ActivePluginIDs:string[]', 'LargeButtons:bool', 'LockSearchBarWidth:bool',
             'LockDropDownButtons:bool', 'ShowButtonLabels:bool', 'ImageStripPath:string'
         )
+        CmdBars = @(
+            'SecondBarItems:CommandBarItem[]', 'SecondBarIconSize:int', 'SecondBarShowLabels:bool', 'VerticalBarItems:CommandBarItem[]',
+            'VerticalBarIconSize:int', 'VerticalBarShowLabels:bool', 'VerticalBarVisible:bool', 'ClickActions:int[]',
+            'MiddleClickActions:int[]'
+        )
         Mouse = @(
             'MouseScrollsHotWnd:bool', 'GlobalMouseActions:Dictionary<MouseChord,BindAction>', 'TabActions:Dictionary<MouseChord,BindAction>', 'BarActions:Dictionary<MouseChord,BindAction>',
             'LinkActions:Dictionary<MouseChord,BindAction>', 'ItemActions:Dictionary<MouseChord,BindAction>', 'MarginActions:Dictionary<MouseChord,BindAction>'

@@ -16,9 +16,16 @@
       - option toggles and enums (Window, Tabs, Tweaks, Tips, Misc, Skin, BBar, Desktop)
       - tab metrics, colours, fonts, tab skin image path
       - the first command bar (BBar\ButtonIndexes, LargeButtons, ShowButtonLabels)
+      - the second and vertical command bars (CmdBars\SecondBarItems, VerticalBarItems, icon sizes,
+        labels, VerticalBarVisible) and the command button click / middle-click events
+        (CmdBars\ClickActions, MiddleClickActions): folder, file/program and group buttons and
+        separators; 2048 basic/advanced (script) commands, child items and custom icons are listed
+        as not imported
+      - groups (HKCU\Software\QTTabBar\Groups): 2048 groups whose name the fork doesn't have yet are
+        appended, their folder PIDLs resolved to paths on this machine; existing groups are kept
     and reports what it cannot map: 2048-only options you changed, lost shortcuts, mouse bindings
-    (left at fork defaults, differences listed), 2nd/vertical command bars, groups, plugins and
-    application launchers (skipped by design).
+    (left at fork defaults, differences listed), plugins and application launchers (skipped by
+    design).
 
     Keyboard policy: the fork's default shortcut table is the base. Every fork action that has a
     2048 counterpart takes the 2048 binding (a binding you cleared in 2048 clears the fork default;
@@ -66,9 +73,9 @@
     %LOCALAPPDATA%\QTTabBar\backup-<yyyyMMdd-HHmmss>.reg
 
 .PARAMETER Only
-    Restrict writing to these fork categories: Window, Tabs, Tweaks, Tips, Misc, Skin, BBar, Keys,
-    Desktop (list or one comma-separated string, e.g. -Only Keys,Tabs). The report still lists
-    everything.
+    Restrict writing to these fork categories: Window, Tabs, Tweaks, Tips, Misc, Skin, BBar, CmdBars,
+    Keys, Desktop, Groups (list or one comma-separated string, e.g. -Only CmdBars,Groups). The report
+    still lists everything.
 
 .PARAMETER ReportPath
     Also write the mapping report as Markdown to this file (UTF-8). The report contains your
@@ -133,7 +140,9 @@ $ErrorActionPreference = 'Stop'
 $script:Inv = [System.Globalization.CultureInfo]::InvariantCulture
 $script:RegRoot = 'Software\QTTabBar'
 $script:RegConfig = 'Software\QTTabBar\Config'
-$script:CategoryOrder = @('Window', 'Tabs', 'Tweaks', 'Tips', 'Misc', 'Skin', 'BBar', 'Keys', 'Desktop')
+$script:CategoryOrder = @('Window', 'Tabs', 'Tweaks', 'Tips', 'Misc', 'Skin', 'BBar', 'CmdBars', 'Keys', 'Desktop')
+# -Only also accepts 'Groups' (HKCU\Software\QTTabBar\Groups, not a Config category).
+$script:GroupsCategory = 'Groups'
 
 # ---------------------------------------------------------------------------------------------
 # Data
@@ -249,6 +258,8 @@ $script:Clamps = @{
     'Desktop.SecondItem'     = @(0, 3)
     'Desktop.ThirdItem'      = @(0, 3)
     'Desktop.FourthItem'     = @(0, 3)
+    'CmdBars.SecondBarIconSize'   = @(16, 256)
+    'CmdBars.VerticalBarIconSize' = @(16, 256)
 }
 
 # The fork's default font name is "Microsoft YaHei" written with CJK characters (kept ASCII here).
@@ -281,6 +292,9 @@ $script:ForkDefaults = @{
     'Skin.SkinAutoColorChangeClose' = '0'; 'Skin.DrawHorizontalExplorerBarBgColor' = '0'; 'Skin.DrawVerticalExplorerBarBgColor' = '0'
     'BBar.ButtonIndexes' = '[3,4,5,6,7,17,11,12,14,15,13,21,9,19,10]'; 'BBar.LargeButtons' = '1'; 'BBar.LockDropDownButtons' = '1'
     'BBar.ShowButtonLabels' = '1'
+    'CmdBars.SecondBarItems' = ''; 'CmdBars.VerticalBarItems' = ''; 'CmdBars.SecondBarIconSize' = '32'; 'CmdBars.VerticalBarIconSize' = '48'
+    'CmdBars.SecondBarShowLabels' = '0'; 'CmdBars.VerticalBarShowLabels' = '0'; 'CmdBars.VerticalBarVisible' = '0'
+    'CmdBars.ClickActions' = '[0,12,1,-1,5,-1,-1,-1]'; 'CmdBars.MiddleClickActions' = '[15,-1,-1,-1,13,-1,-1,-1]'
     'Keys.UseTabSwitcher' = '1'
     'Desktop.FirstItem' = '0'; 'Desktop.SecondItem' = '1'; 'Desktop.ThirdItem' = '2'; 'Desktop.FourthItem' = '3'
     'Desktop.GroupExpanded' = '0'; 'Desktop.RecentTabExpanded' = '0'; 'Desktop.ApplicationExpanded' = '0'; 'Desktop.RecentFileExpanded' = '0'
@@ -558,9 +572,28 @@ function ConvertTo-Canonical([string]$Type, $Value) {
             }
             return 'Pad:' + $vals['left'] + ',' + $vals['top'] + ',' + $vals['right'] + ',' + $vals['bottom']
         }
+        '^CommandBarItem\[\]$' { return (ConvertTo-CmdItemsCanonical ([string]$Value)) }
         '\[\]$' { return (([string]$Value) -replace '\s', '') }
         default { return [string]$Value }
     }
+}
+
+# Command bar items as comparable text: the fork writes every member (nulls, zeros), this script
+# only the non-default ones.
+function ConvertTo-CmdItemsCanonical([string]$Json) {
+    try { $parsed = ConvertFrom-Json $Json } catch { return $Json }
+    $items = @($parsed | ForEach-Object { $_ })
+    $out = foreach ($i in $items) {
+        $f = foreach ($n in 'Type', 'Split', 'Text', 'Path', 'Args', 'WorkingDir', 'Groups', 'FileAction', 'GroupAction', 'Verb', 'WindowSize') {
+            $v = $null
+            if ($null -ne $i.PSObject.Properties[$n]) { $v = $i.$n }
+            if ($v -is [array]) { $v = ($v -join '|') }
+            if ($null -eq $v -or [string]$v -eq '' -or [string]$v -eq '0' -or [string]$v -eq 'False') { $v = '' }
+            "$n=$v"
+        }
+        $f -join ';'
+    }
+    return (@($out) -join "`n")
 }
 
 function Get-RegistryKind([string]$Type) {
@@ -628,7 +661,7 @@ function Read-B2Export([System.Xml.XmlDocument]$Doc, [string]$SourceName) {
                 $idText = Get-B2Text $b 'CommandID'
                 $id = $null
                 if (-not [string]::IsNullOrEmpty($idText)) { $id = [int]::Parse($idText, $script:Inv) }
-                $buttons.Add([pscustomobject]@{ Type = $b.GetAttribute('Type'); SubType = $b.GetAttribute('SubType'); CommandID = $id; Text = (Get-B2Text $b 'DisplayText') })
+                $buttons.Add([pscustomobject]@{ Type = $b.GetAttribute('Type'); SubType = $b.GetAttribute('SubType'); CommandID = $id; Text = (Get-B2Text $b 'DisplayText'); Node = $b })
             }
             $bars[$bar.Name] = [pscustomobject]@{ IconSize = $bar.GetAttribute('IconSize'); Buttons = $buttons }
         }
@@ -645,7 +678,13 @@ function Read-B2Export([System.Xml.XmlDocument]$Doc, [string]$SourceName) {
 
     $groups = @()
     $g = $root.SelectSingleNode('Groups')
-    if ($null -ne $g) { foreach ($c in $g.ChildNodes) { if ($c.NodeType -eq [System.Xml.XmlNodeType]::Element) { $groups += [pscustomobject]@{ Name = $c.Name; Items = @($c.SelectNodes('Item')).Count } } } }
+    if ($null -ne $g) {
+        foreach ($c in $g.ChildNodes) {
+            if ($c.NodeType -ne [System.Xml.XmlNodeType]::Element) { continue }
+            $entries = @($c.SelectNodes('Item') | ForEach-Object { [pscustomobject]@{ Type = $_.GetAttribute('Type'); Text = $_.InnerText } })
+            $groups += [pscustomobject]@{ Name = $c.GetAttribute('Name'); Items = $entries.Count; Entries = $entries }
+        }
+    }
     $launchers = 0
     $al = $root.SelectSingleNode('ApplicationLaunchers')
     if ($null -ne $al) { $launchers = @($al.SelectNodes('*')).Count }
@@ -679,6 +718,8 @@ function New-Plan($B2) {
         KeyWarnings = New-Object System.Collections.Generic.List[string]
         KeyStats = $null
         Buttons = $null
+        CmdBars = $null
+        GroupPlan = New-Object System.Collections.Generic.List[object]
         Mouse = $null
         Skipped = New-Object System.Collections.Generic.List[object]
     }
@@ -1006,9 +1047,251 @@ function Add-ButtonBarWrites($Plan) {
     }
     [void](Get-Scalar $Plan 'CommandBarIconSize1st')
     foreach ($k in @($Plan.B2.Bars.get_Keys())) {
-        if ($k -eq 'CommandBar1st' -or $Plan.B2.Bars[$k].Buttons.Count -eq 0) { continue }
+        if ($script:ImportedBars -contains $k -or $Plan.B2.Bars[$k].Buttons.Count -eq 0) { continue }
         $types = @($Plan.B2.Bars[$k].Buttons | Group-Object Type | Sort-Object Name | ForEach-Object { "$($_.Count) x $($_.Name)" })
         $info.OtherBars.Add([pscustomobject]@{ Bar = $k; Count = $Plan.B2.Bars[$k].Buttons.Count; Types = ($types -join ', ') })
+    }
+}
+
+# ---------------------------------------------------------------------------------------------
+# Second / vertical command bars, command button clicks, groups
+# ---------------------------------------------------------------------------------------------
+
+$script:ImportedBars = @('CommandBar1st', 'CommandBar2nd', 'CommandBarVertical')
+# Events/Interactive sources imported into CmdBars (the other mouse sources are report-only).
+$script:ImportedMouseSources = @('CommandButtonClick', 'CommandButtonMiddleClick')
+
+# 2048 FileAction names -> fork CommandBarFileAction. 2048's view-targeted actions (6..14) have no
+# fork counterpart and fall back to Default.
+$script:B2FileActions = @{ 'Default' = 0; 'NewTab' = 1; 'NewTabBackground' = 2; 'InPlace' = 3; 'NewWindow' = 4; 'ShellExecute' = 5 }
+# 2048 GroupAction names -> fork CommandBarGroupAction. 2048's export writes GroupAction with the
+# FileAction enum's names, so Background/NewWindow/Replace arrive as NewTab/NewTabBackground/InPlace.
+$script:B2GroupActions = @{ 'Default' = 0; 'Background' = 1; 'NewWindow' = 2; 'Replace' = 3; 'NewTab' = 1; 'NewTabBackground' = 2; 'InPlace' = 3 }
+
+$script:PidlHelperSource = @'
+using System;
+using System.Runtime.InteropServices;
+namespace QT2048Import {
+    public static class Pidl {
+        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+        private static extern int SHGetNameFromIDList(IntPtr pidl, uint sigdnName, out IntPtr ppszName);
+        // SIGDN_DESKTOPABSOLUTEPARSING: "C:\x", "::{CLSID}\...", the form the fork stores.
+        public static string ParsingName(byte[] idl) {
+            IntPtr p = Marshal.AllocCoTaskMem(idl.Length);
+            try {
+                Marshal.Copy(idl, 0, p, idl.Length);
+                IntPtr name;
+                if (SHGetNameFromIDList(p, 0x80028000, out name) != 0 || name == IntPtr.Zero) return null;
+                try { return Marshal.PtrToStringUni(name); }
+                finally { Marshal.FreeCoTaskMem(name); }
+            }
+            finally { Marshal.FreeCoTaskMem(p); }
+        }
+    }
+}
+'@
+$script:PidlHelperLoaded = $null
+
+# An absolute ITEMIDLIST: SHITEMIDs (2-byte size + data) ending with a zero size, all inside the data.
+function Test-B2Pidl([byte[]]$Bytes) {
+    $pos = 0
+    while ($true) {
+        if ($pos + 2 -gt $Bytes.Length) { return $false }
+        $cb = [int]$Bytes[$pos] + 256 * [int]$Bytes[$pos + 1]
+        if ($cb -eq 0) { return $true }
+        if ($cb -lt 2 -or $pos + $cb -gt $Bytes.Length) { return $false }
+        $pos += $cb
+    }
+}
+
+# 2048 <IDL> / group <Item Type="IDL"> hex -> shell parsing name, $null when malformed or unresolvable.
+# The PIDL is only handed to SHGetNameFromIDList on this machine (read-only).
+function ConvertFrom-B2Pidl([string]$Hex) {
+    if ([string]::IsNullOrEmpty($Hex)) { return $null }
+    try { $bytes = ConvertFrom-Hex $Hex } catch { return $null }
+    if (-not (Test-B2Pidl $bytes)) { return $null }
+    if ($null -eq $script:PidlHelperLoaded) {
+        try { Add-Type -TypeDefinition $script:PidlHelperSource -ErrorAction Stop; $script:PidlHelperLoaded = $true } catch { $script:PidlHelperLoaded = $false }
+    }
+    if (-not $script:PidlHelperLoaded) { return $null }
+    try { return [QT2048Import.Pidl]::ParsingName($bytes) } catch { return $null }
+}
+
+# One CommandBarItem as DataContractJsonSerializer reads it (members left out keep their defaults).
+function New-CmdItemJson($Item) {
+    $p = New-Object System.Collections.Generic.List[string]
+    # Indexing (not .Name): Set-StrictMode refuses missing hashtable keys as properties.
+    $p.Add('"Type":' + ([int]$Item['Type']).ToString($script:Inv))
+    $p.Add('"Split":' + $(if ($Item['Split']) { 'true' } else { 'false' }))
+    foreach ($n in 'Text', 'Path', 'Args', 'WorkingDir') { if ($Item[$n]) { $p.Add('"' + $n + '":' + (ConvertTo-JsonText $Item[$n])) } }
+    if ($Item['Groups']) { $p.Add('"Groups":[' + ((@($Item['Groups']) | ForEach-Object { ConvertTo-JsonText $_ }) -join ',') + ']') }
+    foreach ($n in 'FileAction', 'GroupAction') { if ([int]$Item[$n] -ne 0) { $p.Add('"' + $n + '":' + ([int]$Item[$n]).ToString($script:Inv)) } }
+    if ($Item['Verb']) { $p.Add('"Verb":' + (ConvertTo-JsonText $Item['Verb'])) }
+    if ([int]$Item['WindowSize'] -ne 0) { $p.Add('"WindowSize":' + ([int]$Item['WindowSize']).ToString($script:Inv)) }
+    return '{' + ($p -join ',') + '}'
+}
+
+# A 2048 <CommandButton> -> fork command bar item. Returns Ok/Json/Label/Summary/Notes, or Ok=$false
+# with a Reason.
+function ConvertFrom-B2CommandButton($Node) {
+    $type = $Node.GetAttribute('Type')
+    $sub = $Node.GetAttribute('SubType')
+    $text = Get-B2Text $Node 'DisplayText'
+    $notes = New-Object System.Collections.Generic.List[string]
+    $item = @{ Type = 0; Split = ($sub -eq 'Split' -or $sub -eq 'DropDown'); Text = $text; Path = $null; Args = $null; WorkingDir = $null; Groups = $null; FileAction = 0; GroupAction = 0; Verb = $null; WindowSize = 0 }
+    if ($sub -eq 'DropDown') { $notes.Add('drop-down button: imported as a split button') }
+    $children = @($Node.SelectNodes('SubItems/CommandButton')).Count
+    if ($children -gt 0) { $notes.Add("$children child items not imported") }
+    if (Get-B2Text $Node 'IconResource') { $notes.Add('custom icon not imported') }
+    if ((Get-B2Text $Node 'KeyboardShortcut') -match '^-?[1-9]') { $notes.Add('button hotkey not imported') }
+    if ((Get-B2Text $Node 'NoImage') -eq 'true') { $notes.Add('text-only in 2048; the fork shows the icon') }
+    $label = ((Get-B2Text $Node 'LabelVisibility') -eq 'true')
+    $fail = { param($r) [pscustomobject]@{ Ok = $false; Reason = $r; Notes = $notes } }
+    switch ($type) {
+        'BuiltIn' {
+            $id = Get-B2Text $Node 'CommandID'
+            if ([string]::IsNullOrEmpty($id) -or $id -eq '0') {
+                return [pscustomobject]@{ Ok = $true; Json = (New-CmdItemJson @{ Type = 2; Split = $false }); Label = $false; Summary = 'separator'; Notes = $notes }
+            }
+            $name = $id
+            $n = 0
+            if ([int]::TryParse($id, [ref]$n) -and $n -ge 0 -and $n -lt $script:Data.B2CommandIds.Count) { $name = "$($script:Data.B2CommandIds[$n]) ($n)" }
+            return (& $fail "2048 basic command $name - use the first button bar for built-in buttons")
+        }
+        'File' {
+            $path = Get-B2Text $Node 'Path'
+            if ([string]::IsNullOrEmpty($path)) {
+                $path = ConvertFrom-B2Pidl (Get-B2Text $Node 'IDL')
+                if ($path) { $notes.Add('target taken from the PIDL') }
+            }
+            if ([string]::IsNullOrEmpty($path)) { return (& $fail 'target cannot be resolved (no Path, PIDL unreadable on this machine)') }
+            $item.Path = $path
+            $argItems = @($Node.SelectNodes('Args/Item') | ForEach-Object { $_.InnerText })
+            if ($argItems.Count -gt 0) { $item.Args = $argItems[0] }
+            if ($argItems.Count -gt 1) { $item.WorkingDir = $argItems[1] }
+            $fa = Get-B2Text $Node 'FileAction'
+            if ($fa) {
+                if ($script:B2FileActions.ContainsKey($fa)) { $item.FileAction = $script:B2FileActions[$fa] }
+                else { $notes.Add("FileAction $fa has no fork equivalent (Default used)") }
+            }
+            $verb = Get-B2Text $Node 'Verb'
+            if ($verb) { $item.Verb = $verb }
+            $opt = Get-B2Text $Node 'Options'
+            if ($opt) {
+                try {
+                    $ob = ConvertFrom-Hex $opt
+                    if ($ob.Length -gt 12 -and $ob[12] -le 3) { $item.WindowSize = [int]$ob[12] }
+                    if ($ob.Length -gt 11 -and $ob[11] -gt 1) { $notes.Add('associated Extra View not imported (opens in the current view)') }
+                }
+                catch { $notes.Add('Options not readable') }
+            }
+            $summary = "File '$text' -> $path"
+            if ($item.Args) { $summary += " args '$($item.Args)'" }
+            if ($item.WorkingDir) { $summary += " dir '$($item.WorkingDir)'" }
+            if ($item.Verb) { $summary += " verb $($item.Verb)" }
+        }
+        'Group' {
+            $groups = @($Node.SelectNodes('Groups/Group') | ForEach-Object { $_.InnerText } | Where-Object { $_ })
+            if ($groups.Count -eq 0) {
+                $legacy = Get-B2Text $Node 'GroupName'
+                if ($legacy) { $groups = @($legacy) }
+            }
+            if ($groups.Count -eq 0) { return (& $fail 'group button without group names') }
+            $item.Type = 1
+            $item.Groups = $groups
+            $ga = Get-B2Text $Node 'GroupAction'
+            if ($ga) {
+                if ($script:B2GroupActions.ContainsKey($ga)) { $item.GroupAction = $script:B2GroupActions[$ga] }
+                else { $notes.Add("GroupAction $ga unknown (Default used)") }
+            }
+            $summary = "Group '" + ($groups -join ', ') + "'"
+        }
+        default { return (& $fail "$type commands have no fork equivalent") }
+    }
+    if ($item.Split) { $summary += ' [split]' }
+    return [pscustomobject]@{ Ok = $true; Json = (New-CmdItemJson $item); Label = $label; Summary = $summary; Notes = $notes }
+}
+
+function Add-CommandBarWrites($Plan) {
+    $info = [pscustomobject]@{ Bars = New-Object System.Collections.Generic.List[object] }
+    $Plan.CmdBars = $info
+    foreach ($def in @(@('CommandBar2nd', 'SecondBar', 'CommandBar_ShowTextLabel2nd', 'CommandBarIconSize2nd'),
+                       @('CommandBarVertical', 'VerticalBar', 'CommandBar_ShowTextLabelVrt', 'CommandBarIconSizeVrt'))) {
+        $b2Name = $def[0]; $fork = $def[1]
+        $labelSec = Get-Sec $Plan $def[2]
+        [void](Get-Scalar $Plan $def[3])
+        if (-not $Plan.B2.Bars.Contains($b2Name)) { continue }
+        $bar = $Plan.B2.Bars[$b2Name]
+        $rows = New-Object System.Collections.Generic.List[object]
+        $jsons = New-Object System.Collections.Generic.List[string]
+        $anyLabel = $false
+        $pos = 0
+        foreach ($b in $bar.Buttons) {
+            $pos++
+            $r = ConvertFrom-B2CommandButton $b.Node
+            $rows.Add([pscustomobject]@{ Pos = $pos; Result = $r })
+            if ($r.Ok) { $jsons.Add($r.Json); if ($r.Label) { $anyLabel = $true } }
+        }
+        Add-Write $Plan 'CmdBars' "${fork}Items" ('[' + ($jsons -join ',') + ']') ("{0} ({1} buttons)" -f $b2Name, $bar.Buttons.Count) ("{0} of {1} buttons imported" -f $jsons.Count, $bar.Buttons.Count)
+        $size = 0
+        if ([int]::TryParse([string]$bar.IconSize, [ref]$size) -and $size -gt 0) {
+            Add-Write $Plan 'CmdBars' "${fork}IconSize" $size "$b2Name IconSize=$size"
+        }
+        # 2048: a button shows its label when its LabelVisibility is set, unless the bar hides labels.
+        Add-Write $Plan 'CmdBars' "${fork}ShowLabels" ([int]($anyLabel -and $labelSec -eq 0)) (Format-Inv '{0}: button labels {1}; {2}={3}' $b2Name $(if ($anyLabel) { 'on' } else { 'off' }) $def[2] $labelSec) 'fork: one setting per bar'
+        $info.Bars.Add([pscustomobject]@{ Bar = $b2Name; Fork = $fork; IconSize = $bar.IconSize; Rows = $rows; Imported = $jsons.Count })
+    }
+    $v = Get-Sec $Plan 'CommandBar_VerticalEnabled'
+    Add-Write $Plan 'CmdBars' 'VerticalBarVisible' ([int]($v -ne 0)) "CommandBar_VerticalEnabled=$v"
+    foreach ($pair in @(@('CommandButtonClick', 'ClickActions'), @('CommandButtonMiddleClick', 'MiddleClickActions'))) {
+        if (-not $Plan.B2.Mouse.Contains($pair[0])) { continue }
+        $vals = @($Plan.B2.Mouse[$pair[0]])
+        $note = 'index = Ctrl 1 | Shift 2 | Alt 4; 2048''s Extra View actions act on the current view'
+        $bad = @($vals | Where-Object { $_ -lt -1 -or $_ -gt 15 })
+        if ($bad.Count -gt 0) {
+            $vals = @($vals | ForEach-Object { if ($_ -lt -1 -or $_ -gt 15) { -1 } else { $_ } })
+            $note += '; unknown values set to -1 (nothing)'
+        }
+        Add-Write $Plan 'CmdBars' $pair[1] ('[' + (($vals | ForEach-Object { ([int]$_).ToString($script:Inv) }) -join ',') + ']') "Events/Interactive/$($pair[0])" $note
+    }
+}
+
+# Names of the fork's groups (HKCU\Software\QTTabBar\Groups\<n>, read-only).
+function Get-ForkGroupNames {
+    $names = New-Object System.Collections.Generic.List[string]
+    $k = $null
+    try { $k = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey("$script:RegRoot\Groups", $false) } catch { $k = $null }
+    if ($null -eq $k) { return ,$names }
+    try {
+        $i = 0
+        while ($true) {
+            $gk = $k.OpenSubKey($i.ToString($script:Inv), $false)
+            if ($null -eq $gk) { break }
+            try { $n = $gk.GetValue(''); if ($n -is [string]) { $names.Add($n) } } finally { $gk.Close() }
+            $i++
+        }
+    }
+    finally { $k.Close() }
+    return ,$names
+}
+
+# 2048 groups (folder PIDLs) -> fork groups (parsing names). Groups whose name already exists in
+# the fork are left alone; the others are appended.
+function Add-GroupWrites($Plan) {
+    $existing = Get-ForkGroupNames
+    foreach ($g in @($Plan.B2.Groups)) {
+        $paths = New-Object System.Collections.Generic.List[string]
+        $lost = 0
+        foreach ($e in @($g.Entries)) {
+            $p = $null
+            if ($e.Type -eq 'IDL') { $p = ConvertFrom-B2Pidl $e.Text } elseif ($e.Text) { $p = $e.Text }
+            if ($p) { $paths.Add($p) } else { $lost++ }
+        }
+        if ([string]::IsNullOrEmpty($g.Name)) { $status = 'skipped: no name' }
+        elseif ($existing -contains $g.Name) { $status = 'exists: kept as is' }
+        elseif ($paths.Count -eq 0) { $status = 'skipped: no folder could be resolved' }
+        else { $status = 'add' }
+        $Plan.GroupPlan.Add([pscustomobject]@{ Name = $g.Name; Paths = $paths; Lost = $lost; Status = $status; Selected = $true })
     }
 }
 
@@ -1188,6 +1471,7 @@ function Add-MouseReport($Plan) {
     $Plan.Mouse = $rep
     foreach ($src in $script:Data.B2MouseSources) {
         $name = $src.Name
+        if ($script:ImportedMouseSources -contains $name) { continue }   # imported into CmdBars
         if (-not $Plan.B2.Mouse.Contains($name)) { $rep.Missing++; $vals = [int[]]$src.Default }
         else { $vals = $Plan.B2.Mouse[$name] }
         for ($slot = 0; $slot -lt 8; $slot++) {
@@ -1358,6 +1642,30 @@ function Get-ConsoleLines($Plan, [bool]$IsApply) {
         $o.Add('')
     }
 
+    if ($null -ne $Plan.CmdBars) {
+        foreach ($bar in $Plan.CmdBars.Bars) {
+            $o.Add("Command bar $($bar.Bar) -> CmdBars\$($bar.Fork)Items (icon size $($bar.IconSize)): $($bar.Imported) of $($bar.Rows.Count) imported")
+            foreach ($r in $bar.Rows) {
+                $res = $r.Result
+                if ($res.Ok) { $line = "  #$($r.Pos) $($res.Summary)" } else { $line = "  #$($r.Pos) NOT imported: $($res.Reason)" }
+                if ($res.Notes.Count -gt 0) { $line += ' (' + ($res.Notes -join '; ') + ')' }
+                $o.Add($line)
+            }
+            $o.Add('')
+        }
+    }
+    if ($Plan.GroupPlan.Count -gt 0) {
+        $gsel = $(if ($Plan.GroupPlan[0].Selected) { '' } else { '   [SKIPPED by -Only]' })
+        $o.Add("Groups -> HKCU\$script:RegRoot\Groups (new groups are appended; existing ones are not changed)$gsel")
+        foreach ($g in $Plan.GroupPlan) {
+            $line = "  $($g.Name): $($g.Status), $($g.Paths.Count) folders"
+            if ($g.Lost -gt 0) { $line += ", $($g.Lost) not resolvable" }
+            $o.Add($line)
+            if ($g.Status -eq 'add') { foreach ($p in $g.Paths) { $o.Add("      $p") } }
+        }
+        $o.Add('')
+    }
+
     $o.Add("2048 options you changed that have no fork equivalent ($($Plan.UnmappedChanged.Count); $($Plan.UnmappedAtDefault) more unmapped sections are at 2048 defaults)")
     foreach ($u in $Plan.UnmappedChanged) { $o.Add('  ' + (Format-Cell $u.Section 36) + (Format-Inv ' yours={0} 2048 default={1}' $u.Value $u.Default2048)) }
     foreach ($l in $Plan.LostOptions) { $o.Add('  ' + (Format-Cell $l.Item 36) + " $($l.Value): $($l.Reason)") }
@@ -1376,9 +1684,6 @@ function Get-ConsoleLines($Plan, [bool]$IsApply) {
     }
 
     $o.Add('Skipped by design')
-    $gi = ($Plan.B2.Groups | ForEach-Object { $_.Items } | Measure-Object -Sum).Sum
-    if ($null -eq $gi) { $gi = 0 }
-    $o.Add("  Groups: $(@($Plan.B2.Groups).Count) groups, $gi items (2048 creates its default groups itself; the fork stores groups by path)")
     $o.Add("  Application launchers: $($Plan.B2.Launchers) entries")
     $o.Add('  Plugins: ' + ((@($Plan.B2.Plugins) | ForEach-Object { "$($_.Name) ($($_.Length / 2) bytes BinaryFormatter, not deserialized)" }) -join ', '))
     $o.Add('')
@@ -1473,6 +1778,32 @@ function Get-MarkdownReport($Plan) {
         foreach ($l in $Plan.Buttons.Lost) { $o.Add("| $($l.Pos) | $(ConvertTo-MdCell $l.B2) | not imported: $(ConvertTo-MdCell $l.Reason) |") }
         foreach ($x in $Plan.Buttons.OtherBars) { $o.Add(''); $o.Add("- $($x.Bar): $($x.Count) items ($($x.Types)) - no fork equivalent, not imported") }
     }
+    if ($null -ne $Plan.CmdBars) {
+        foreach ($bar in $Plan.CmdBars.Bars) {
+            $o.Add('')
+            $o.Add("## Command bar $($bar.Bar)")
+            $o.Add('')
+            $o.Add("Imported into ``CmdBars\$($bar.Fork)Items`` (icon size $($bar.IconSize)): $($bar.Imported) of $($bar.Rows.Count) buttons.")
+            $o.Add('')
+            $o.Add('| # | Button | Notes |')
+            $o.Add('|---|---|---|')
+            foreach ($r in $bar.Rows) {
+                $res = $r.Result
+                $what = $(if ($res.Ok) { $res.Summary } else { 'not imported: ' + $res.Reason })
+                $o.Add("| $($r.Pos) | $(ConvertTo-MdCell $what) | $(ConvertTo-MdCell ($res.Notes -join '; ')) |")
+            }
+        }
+    }
+    if ($Plan.GroupPlan.Count -gt 0) {
+        $o.Add('')
+        $o.Add('## Groups')
+        $o.Add('')
+        $o.Add("New groups are appended to ``HKCU\$script:RegRoot\Groups``; groups that already exist in the fork are not changed.")
+        $o.Add('')
+        $o.Add('| Group | Status | Folders | Not resolvable |')
+        $o.Add('|---|---|---|---|')
+        foreach ($g in $Plan.GroupPlan) { $o.Add("| $(ConvertTo-MdCell $g.Name) | $($g.Status) | $(ConvertTo-MdCell ($g.Paths -join ', ')) | $($g.Lost) |") }
+    }
     $o.Add('')
     $o.Add('## 2048-only options you changed (not imported)')
     $o.Add('')
@@ -1515,9 +1846,6 @@ function Get-MarkdownReport($Plan) {
     $o.Add('')
     $o.Add('## Skipped by design')
     $o.Add('')
-    $gi = ($Plan.B2.Groups | ForEach-Object { $_.Items } | Measure-Object -Sum).Sum
-    if ($null -eq $gi) { $gi = 0 }
-    $o.Add("- Groups: $(@($Plan.B2.Groups).Count) groups with $gi PIDL items")
     $o.Add("- Application launchers: $($Plan.B2.Launchers) entries")
     $o.Add('- Plugins: ' + ((@($Plan.B2.Plugins) | ForEach-Object { "$($_.Name) ($($_.Length / 2) bytes, BinaryFormatter - never deserialized)" }) -join '; '))
     if ($Plan.Notes.Count -gt 0) {
@@ -1558,6 +1886,8 @@ function Get-ImportPlan($B2) {
     $plan = New-Plan $B2
     Add-OptionWrites $plan
     Add-KeyboardWrites $plan
+    Add-CommandBarWrites $plan
+    Add-GroupWrites $plan
     Add-UnmappedOptions $plan
     Add-MouseReport $plan
     # sort writes by category order, then name (deterministic output)
@@ -1580,7 +1910,8 @@ function Set-EffectiveDefaultFont([string]$Override) {
 
 function Invoke-Apply($Plan, [string]$Backup, $Cmdlet) {
     $sel = @($Plan.Writes | Where-Object { $_.Selected })
-    if ($sel.Count -eq 0) { Write-Output 'Nothing selected to write.'; return }
+    $newGroups = @($Plan.GroupPlan | Where-Object { $_.Selected -and $_.Status -eq 'add' })
+    if ($sel.Count -eq 0 -and $newGroups.Count -eq 0) { Write-Output 'Nothing selected to write.'; return }
     if (Test-ForkRootKey) {
         $dir = Split-Path -Parent $Backup
         if ($dir -and -not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
@@ -1610,6 +1941,38 @@ function Invoke-Apply($Plan, [string]$Backup, $Cmdlet) {
         $written++
     }
     Write-Output "Written and verified: $written values under HKCU\$script:RegConfig."
+    if ($newGroups.Count -gt 0) { Add-ForkGroups $newGroups $Cmdlet }
+}
+
+# Appends groups as the fork's GroupsManager stores them: Groups\<n> (default) = name, "0".."k" = paths.
+function Add-ForkGroups($Groups, $Cmdlet) {
+    $existing = Get-ForkGroupNames
+    $root = [Microsoft.Win32.Registry]::CurrentUser.CreateSubKey("$script:RegRoot\Groups")
+    $added = 0
+    try {
+        $i = 0
+        while ($true) {
+            $t = $root.OpenSubKey($i.ToString($script:Inv), $false)
+            if ($null -eq $t) { break }
+            $t.Close()
+            $i++
+        }
+        foreach ($g in $Groups) {
+            if ($existing -contains $g.Name) { continue }
+            $name = $i.ToString($script:Inv)
+            if (-not $Cmdlet.ShouldProcess("HKCU\$script:RegRoot\Groups\$name", "add group '$($g.Name)'")) { continue }
+            $gk = $root.CreateSubKey($name)
+            try {
+                $gk.SetValue('', [string]$g.Name, [Microsoft.Win32.RegistryValueKind]::String)
+                for ($j = 0; $j -lt $g.Paths.Count; $j++) { $gk.SetValue($j.ToString($script:Inv), [string]$g.Paths[$j], [Microsoft.Win32.RegistryValueKind]::String) }
+            }
+            finally { $gk.Close() }
+            $i++
+            $added++
+        }
+    }
+    finally { $root.Close() }
+    Write-Output "Groups added: $added under HKCU\$script:RegRoot\Groups."
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1670,7 +2033,17 @@ function Invoke-SelfTest {
         '</Config><CommandBar><CommandBar1st IconSize="16">' +
         '<CommandButton Type="BuiltIn"><CommandID>3</CommandID></CommandButton><CommandButton Type="BuiltIn"><CommandID>20</CommandID></CommandButton>' +
         '<CommandButton Type="ScriptingCommand"><CommandID>121</CommandID></CommandButton><CommandButton Type="BuiltIn"><CommandID>23</CommandID></CommandButton>' +
-        '<CommandButton Type="BuiltIn"><CommandID>19</CommandID></CommandButton></CommandBar1st></CommandBar></QTTabBar>'
+        '<CommandButton Type="BuiltIn"><CommandID>19</CommandID></CommandButton></CommandBar1st>' +
+        '<CommandBar2nd IconSize="24">' +
+        '<CommandButton Type="File" SubType="Split"><DisplayText>PC</DisplayText><IDL>14001F50E04FD020EA3A6910A2D808002B30309D0000</IDL></CommandButton>' +
+        '<CommandButton Type="File" SubType="Normal"><DisplayText>c"md</DisplayText><Path>%windir%\system32\cmd.exe</Path><Args><Item>/k</Item><Item>%cd%</Item></Args>' +
+        '<Verb>runas</Verb><Options>0100000000000000000000000101</Options></CommandButton>' +
+        '<CommandButton Type="BuiltIn"><CommandID>0</CommandID></CommandButton>' +
+        '<CommandButton Type="Group" SubType="DropDown"><GroupAction>NewTabBackground</GroupAction><LabelVisibility>true</LabelVisibility><Groups><Group>G1</Group><Group>G2</Group></Groups></CommandButton>' +
+        '<CommandButton Type="ScriptingCommand"><CommandID>104</CommandID></CommandButton></CommandBar2nd>' +
+        '<CommandBarVertical IconSize="300"><CommandButton Type="File"><Path>C:\Windows</Path><FileAction>InPlace</FileAction></CommandButton></CommandBarVertical></CommandBar>' +
+        '<Groups><Group Name="QT2048 selftest group"><Item Type="IDL">14001F50E04FD020EA3A6910A2D808002B30309D0000</Item><Item Type="IDL">0500AABB</Item></Group></Groups>' +
+        '<Events><Interactive><CommandButtonClick>020000000C00000001000000FFFFFFFF05000000FFFFFFFFFFFFFFFF63000000</CommandButtonClick></Interactive></Events></QTTabBar>'
     $doc = New-Object System.Xml.XmlDocument
     $doc.XmlResolver = $null
     $doc.LoadXml($xmlText)
@@ -1716,6 +2089,31 @@ function Invoke-SelfTest {
     Check 'unknown setting names are refused' $threw ''
     $kindBad = @($plan.Writes | Where-Object { ($_.Kind -eq 'DWord') -ne ($_.Type -eq 'bool' -or $_.Type -eq 'int') })
     Check 'registry kinds follow the schema types' ($kindBad.Count -eq 0) (($kindBad | ForEach-Object { $_.Key }) -join ', ')
+
+    # Second / vertical command bars, click events, groups.
+    $pcName = '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}'
+    Check 'PIDL of This PC resolves to its parsing name' ((ConvertFrom-B2Pidl '14001F50E04FD020EA3A6910A2D808002B30309D0000') -eq $pcName) ([string](ConvertFrom-B2Pidl '14001F50E04FD020EA3A6910A2D808002B30309D0000'))
+    Check 'malformed PIDLs are refused' ($null -eq (ConvertFrom-B2Pidl '0500AABB') -and $null -eq (ConvertFrom-B2Pidl 'ZZ') -and $null -eq (ConvertFrom-B2Pidl '0200')) ''
+    $cexp = [ordered]@{
+        'CmdBars.SecondBarItems' = '[{"Type":0,"Split":true,"Text":"PC","Path":"' + $pcName + '"},' +
+            '{"Type":0,"Split":false,"Text":"c\"md","Path":"%windir%\\system32\\cmd.exe","Args":"/k","WorkingDir":"%cd%","Verb":"runas","WindowSize":1},' +
+            '{"Type":2,"Split":false},{"Type":1,"Split":true,"Groups":["G1","G2"],"GroupAction":2}]'
+        'CmdBars.VerticalBarItems' = '[{"Type":0,"Split":false,"Path":"C:\\Windows","FileAction":3}]'
+        'CmdBars.SecondBarIconSize' = 24; 'CmdBars.VerticalBarIconSize' = 256
+        'CmdBars.SecondBarShowLabels' = [int]($plan.B2.Sections['CommandBar_ShowTextLabel2nd'] -eq 0); 'CmdBars.VerticalBarShowLabels' = 0
+        'CmdBars.VerticalBarVisible' = [int]($plan.B2.Sections['CommandBar_VerticalEnabled'] -ne 0)
+        'CmdBars.ClickActions' = '[2,12,1,-1,5,-1,-1,-1]'
+    }
+    foreach ($k in $cexp.get_Keys()) {
+        $ok = $pv.ContainsKey($k) -and ([string]$pv[$k] -eq [string]$cexp[$k])
+        Check "mapping $k" $ok $(if ($pv.ContainsKey($k)) { [string]$pv[$k] } else { '(not planned)' })
+    }
+    Check 'no MiddleClickActions without the event' (-not $pv.ContainsKey('CmdBars.MiddleClickActions')) ''
+    $bar2 = @($plan.CmdBars.Bars | Where-Object { $_.Bar -eq 'CommandBar2nd' })
+    Check 'command bar 2: 4 of 5 imported' ($bar2.Count -eq 1 -and $bar2[0].Imported -eq 4 -and $bar2[0].Rows.Count -eq 5) ''
+    Check 'command bar items JSON is canonical-stable' ((ConvertTo-CmdItemsCanonical $cexp['CmdBars.VerticalBarItems']) -eq (ConvertTo-CmdItemsCanonical '[{"Args":null,"FileAction":3,"GroupAction":0,"Groups":null,"Path":"C:\\Windows","Split":false,"Text":null,"Type":0,"Verb":null,"WindowSize":0,"WorkingDir":null}]')) ''
+    $gp = $plan.GroupPlan.ToArray()   # (@() around this List throws in Windows PowerShell 5.1)
+    Check 'groups: PIDL items resolved, malformed one counted' ($gp.Count -eq 1 -and $gp[0].Paths.Count -eq 1 -and $gp[0].Paths[0] -eq $pcName -and $gp[0].Lost -eq 1) $(if ($gp.Count -gt 0) { "$($gp[0].Paths -join ',') lost=$($gp[0].Lost)" } else { 'none' })
 
     # Cross-check against the repository's Config.cs when available.
     $cs = Join-Path $PSScriptRoot '..\..\QTTabBar\Config.cs'
@@ -1805,9 +2203,10 @@ if ($Only) {
     # also accept "Keys,Tabs" as one argument (powershell.exe -File passes it unsplit)
     $parts = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
     $script:OnlySet = @()
+    $valid = @($script:CategoryOrder) + $script:GroupsCategory
     foreach ($p in $parts) {
-        $match = @($script:CategoryOrder | Where-Object { $_ -eq $p })
-        if ($match.Count -eq 0) { throw "-Only: unknown category '$p'. Valid: $($script:CategoryOrder -join ', ')." }
+        $match = @($valid | Where-Object { $_ -eq $p })
+        if ($match.Count -eq 0) { throw "-Only: unknown category '$p'. Valid: $($valid -join ', ')." }
         if ($script:OnlySet -notcontains $match[0]) { $script:OnlySet += $match[0] }
     }
 }
@@ -1816,7 +2215,10 @@ Set-EffectiveDefaultFont $DefaultFontName
 $doc = Read-B2XmlDocument $XmlPath
 $b2 = Read-B2Export $doc ((Resolve-Path -LiteralPath $XmlPath).ProviderPath)
 $plan = Get-ImportPlan $b2
-if ($script:OnlySet) { foreach ($w in $plan.Writes) { $w.Selected = ($script:OnlySet -contains $w.Category) } }
+if ($script:OnlySet) {
+    foreach ($w in $plan.Writes) { $w.Selected = ($script:OnlySet -contains $w.Category) }
+    foreach ($g in $plan.GroupPlan) { $g.Selected = ($script:OnlySet -contains $script:GroupsCategory) }
+}
 Read-CurrentValues $plan
 
 foreach ($line in (Get-ConsoleLines $plan $Apply.IsPresent)) { Write-Output $line }

@@ -172,13 +172,23 @@ namespace QTTabBarLib {
         }
 
         public static void Execute(UserApp app, ShellBrowserEx shellBrowser) {
+            Execute(app, shellBrowser, null, 1 /* SW_SHOWNORMAL */);
+        }
+
+        // verb: a ShellExecute verb such as "runas", null for the default one. nShow: SW_* value for
+        // the started program. shellBrowser may be null (no folder: the tokens expand to nothing).
+        public static void Execute(UserApp app, ShellBrowserEx shellBrowser, string verb, int nShow) {
             // todo validate app
-            string pathCurrent;
-            using(IDLWrapper wrapper = shellBrowser.GetShellPath()) {
-                pathCurrent = wrapper.Path;
+            string pathCurrent = "";
+            Address[] selection = null;
+            IntPtr hwndExplorer = IntPtr.Zero;
+            if(shellBrowser != null) {
+                using(IDLWrapper wrapper = shellBrowser.GetShellPath()) {
+                    pathCurrent = wrapper.Path;
+                }
+                shellBrowser.TryGetSelection(out selection, false);
+                hwndExplorer = shellBrowser.GetExplorerHandle();
             }
-            Address[] selection;
-            shellBrowser.TryGetSelection(out selection, false);
 
             List<string> lstFiles = new List<string>();
             List<string> lstDirs = new List<string>();
@@ -194,7 +204,7 @@ namespace QTTabBarLib {
             string strFiles = lstFiles.StringJoin(" ");
             string strDirs = lstDirs.StringJoin(" ");
             string strBoth = (strFiles + " " + strDirs).Trim();
-            pathCurrent = Directory.Exists(pathCurrent) ? pathCurrent.TrimEnd('\\').Enquote() : "";
+            pathCurrent = !string.IsNullOrEmpty(pathCurrent) && Directory.Exists(pathCurrent) ? pathCurrent.TrimEnd('\\').Enquote() : "";
             string args = app.Args;
             string work = app.WorkingDir;
             string path = app.Path;
@@ -235,7 +245,7 @@ namespace QTTabBarLib {
                             nShow = SW_SHOWNORMAL,
                             fMask = SEE_MASK_IDLIST,
                             lpIDList = idlw.PIDL,
-                            hwnd = shellBrowser.GetExplorerHandle()
+                            hwnd = hwndExplorer
                         };
                         PInvoke.ShellExecuteEx(ref sei);
                         return;
@@ -251,13 +261,16 @@ namespace QTTabBarLib {
 
                 SHELLEXECUTEINFO sei = new SHELLEXECUTEINFO {
                     cbSize = Marshal.SizeOf(typeof(SHELLEXECUTEINFO)),
-                    nShow = SW_SHOWNORMAL,
+                    nShow = nShow,
                     fMask = SEE_MASK_DOENVSUBST | SEE_MASK_FLAG_LOG_USAGE | SEE_MASK_ASYNCOK,
-                    hwnd = shellBrowser.GetExplorerHandle()
+                    hwnd = hwndExplorer
                 };
 
                 try {
                     sei.lpFile = Marshal.StringToCoTaskMemUni(path);
+                    if(!string.IsNullOrEmpty(verb)) {
+                        sei.lpVerb = Marshal.StringToCoTaskMemUni(verb);
+                    }
 
                     // Arguments
                     if(!string.IsNullOrEmpty(args)) {
@@ -284,10 +297,17 @@ namespace QTTabBarLib {
                         StaticReg.ExecutedPathsList.Add(path);
                         return;
                     }
+                    const int ERROR_CANCELLED = 1223;   // e.g. the elevation prompt was declined
+                    if(Marshal.GetLastWin32Error() == ERROR_CANCELLED) {
+                        return;
+                    }
                 }
                 finally {
                     if(sei.lpFile != IntPtr.Zero) {
                         Marshal.FreeCoTaskMem(sei.lpFile);
+                    }
+                    if(sei.lpVerb != IntPtr.Zero) {
+                        Marshal.FreeCoTaskMem(sei.lpVerb);
                     }
                     if(sei.lpParameters != IntPtr.Zero) {
                         Marshal.FreeCoTaskMem(sei.lpParameters);

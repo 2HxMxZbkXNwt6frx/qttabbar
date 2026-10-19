@@ -235,6 +235,7 @@ namespace QTTabBarLib {
         public static _Plugin Plugin    { get { return ConfigManager.LoadedConfig.plugin; } }	/* Plugin management */
         public static _Lang Lang        { get { return ConfigManager.LoadedConfig.lang; } }		/* Language config */
         public static _Desktop Desktop { get { return ConfigManager.LoadedConfig.desktop; } }   /* About info */
+        public static _CmdBars CmdBars { get { return ConfigManager.LoadedConfig.cmdbars; } }   /* Second and vertical command bars */
 
         public _Window window   { get; set; }
         public _Tabs tabs       { get; set; }
@@ -248,6 +249,7 @@ namespace QTTabBarLib {
         public _Plugin plugin   { get; set; }
         public _Lang lang       { get; set; }
         public _Desktop desktop { get; set; }
+        public _CmdBars cmdbars { get; set; }
 
         public Config() {
             window = new _Window();
@@ -262,6 +264,7 @@ namespace QTTabBarLib {
             plugin = new _Plugin();
             lang = new _Lang();
             desktop = new _Desktop();
+            cmdbars = new _CmdBars();
         }
 
         [Serializable]
@@ -802,6 +805,42 @@ namespace QTTabBarLib {
             }
         }
 
+        // The second command bar (a toolbar band like QTTab Standard Buttons) and the vertical
+        // command bar (a pane on the left of the window): user buttons for folders, files,
+        // programs and groups. See CommandBarBand.
+        [Serializable]
+        public class _CmdBars {
+            public CommandBarItem[] SecondBarItems   { get; set; }
+            public int SecondBarIconSize             { get; set; }
+            public bool SecondBarShowLabels          { get; set; }
+            public CommandBarItem[] VerticalBarItems { get; set; }
+            public int VerticalBarIconSize           { get; set; }
+            public bool VerticalBarShowLabels        { get; set; }
+            // Explorer doesn't reopen custom vertical bars in new windows; QTTabBar does while this is set.
+            public bool VerticalBarVisible           { get; set; }
+            // What clicking / middle-clicking a button does, per modifier combination: index =
+            // Ctrl 1 | Shift 2 | Alt 4. Values as 2048 Beta2's "Command Button default" events
+            // (CommandBarBand.ClickAction): 0 new tab, 1 background tab, 2 this tab, 12 new window,
+            // 13 properties, 14 copy path, 15 edit the button, -1 nothing.
+            public int[] ClickActions                { get; set; }
+            public int[] MiddleClickActions          { get; set; }
+
+            public _CmdBars() {
+                SecondBarItems = new CommandBarItem[0];
+                SecondBarIconSize = 32;
+                SecondBarShowLabels = false;
+                VerticalBarItems = new CommandBarItem[0];
+                VerticalBarIconSize = 48;
+                VerticalBarShowLabels = false;
+                ClickActions = DefaultClickActions;
+                MiddleClickActions = DefaultMiddleClickActions;
+            }
+
+            // 2048 Beta2's defaults.
+            internal static int[] DefaultClickActions { get { return new[] { 0, 12, 1, -1, 5, -1, -1, -1 }; } }
+            internal static int[] DefaultMiddleClickActions { get { return new[] { 15, -1, -1, -1, 13, -1, -1, -1 }; } }
+        }
+
         [Serializable]
         public class _Mouse {
             public bool MouseScrollsHotWnd       { get; set; }
@@ -1225,6 +1264,16 @@ namespace QTTabBarLib {
                 using(IDLWrapper wrapper = new IDLWrapper(Config.BBar.ImageStripPath)) {
                     // todo: check dimensions
                     if(!wrapper.Available) Config.BBar.ImageStripPath = "";
+                }
+                Config.CmdBars.SecondBarIconSize = QTUtility.ValidateMinMax(Config.CmdBars.SecondBarIconSize, 16, 256);
+                Config.CmdBars.VerticalBarIconSize = QTUtility.ValidateMinMax(Config.CmdBars.VerticalBarIconSize, 16, 256);
+                Config.CmdBars.SecondBarItems = (Config.CmdBars.SecondBarItems ?? new CommandBarItem[0]).Where(i => i != null).ToArray();
+                Config.CmdBars.VerticalBarItems = (Config.CmdBars.VerticalBarItems ?? new CommandBarItem[0]).Where(i => i != null).ToArray();
+                if(Config.CmdBars.ClickActions == null || Config.CmdBars.ClickActions.Length != 8) {
+                    Config.CmdBars.ClickActions = Config._CmdBars.DefaultClickActions;
+                }
+                if(Config.CmdBars.MiddleClickActions == null || Config.CmdBars.MiddleClickActions.Length != 8) {
+                    Config.CmdBars.MiddleClickActions = Config._CmdBars.DefaultMiddleClickActions;
                 }
                 List<int> blist = Config.BBar.ButtonIndexes.ToList();
                 blist.RemoveAll(i => (i.HiWord() - 1) >= Config.BBar.ActivePluginIDs.Length);

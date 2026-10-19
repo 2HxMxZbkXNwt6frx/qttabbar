@@ -4786,6 +4786,10 @@ namespace QTTabBarLib {
             // (it needs its list view to close itself), but must not become that target, or the
             // folders opened next go to a window that is about to close and their tabs are lost.
             if(!fNowQuitting) InstanceManager.PushTabBarInstance(this);
+            // Explorer doesn't reopen custom vertical bars in new windows (see QTCommandBarVertical).
+            if(!fNowQuitting && Config.CmdBars.VerticalBarVisible && Explorer != null) {
+                BeginInvoke(new MethodInvoker(() => QTCommandBarVertical.ShowInWindow(Explorer)));
+            }
             //  Install hooks
             QTUtility2.log("QTTabBarClass InitializeOpenedWindow  InstallHooks");
             InstallHooks();
@@ -6658,6 +6662,59 @@ namespace QTTabBarLib {
             return listView;
         }
         
+        private void EnsureSubDirTip_Tab() {
+            if(subDirTip_Tab == null) {
+                subDirTip_Tab = new SubDirTipForm(Handle, true, listView);
+                subDirTip_Tab.MenuItemClicked += subDirTip_MenuItemClicked;
+                subDirTip_Tab.MultipleMenuItemsClicked += subDirTip_MultipleMenuItemsClicked;
+                subDirTip_Tab.MenuItemRightClicked += subDirTip_MenuItemRightClicked;
+                subDirTip_Tab.MenuClosed += subDirTip_Tab_MenuClosed;
+                subDirTip_Tab.MultipleMenuItemsRightClicked += subDirTip_MultipleMenuItemsRightClicked;
+            }
+        }
+
+        // Shows a folder's contents as the menu of a tab's subfolder arrow, at a screen point. Used
+        // by the command bars' split buttons; a folder clicked there opens in a new tab (Shift: in
+        // the background, Ctrl: new window), as in 2048 Beta2.
+        internal bool ShowFolderMenu(string path, Point screenPoint) {
+            try {
+                EnsureSubDirTip_Tab();
+                ContextMenuedTab = CurrentTab;
+                fFolderMenuFromCommandBar = true;
+                bool shown = subDirTip_Tab.ShowMenuWithoutShowForm(path, screenPoint, false);
+                if(!shown) fFolderMenuFromCommandBar = false;
+                return shown;
+            }
+            catch(Exception ex) {
+                fFolderMenuFromCommandBar = false;
+                QTUtility2.MakeErrorLog(ex, "ShowFolderMenu");
+                return false;
+            }
+        }
+
+        private bool fFolderMenuFromCommandBar;
+
+        // Command bars, group "Replace": open the group, then close the other unlocked tabs.
+        internal void ReplaceTabsWithGroup(string groupName) {
+            Group g = GroupsManager.GetGroup(groupName);
+            if(g == null || g.Paths.Count == 0) return;
+            List<QTabItem> before = tabControl1.TabPages.ToList();
+            OpenGroup(groupName, false, true);
+            List<QTabItem> close = before.Where(tab => !tab.TabLocked &&
+                    !g.Paths.Any(p => tab.CurrentPath.PathEquals(p))).ToList();
+            if(close.Count >= tabControl1.TabCount) return;   // the group opened nothing
+            CloseTabs(close);
+        }
+
+        // Command bars: open a group's folders as tabs without switching to them.
+        internal void OpenGroupInBackground(string groupName) {
+            Group g = GroupsManager.GetGroup(groupName);
+            if(g == null) return;
+            foreach(string path in g.Paths) {
+                OpenNewTab(path, true);
+            }
+        }
+
         // Show the SubDirTip info
         private void ShowSubdirTip_Tab(QTabItem tab, bool fShow, int offsetX, bool fKey, bool fParent) {
             try {
@@ -6672,14 +6729,7 @@ namespace QTTabBarLib {
                     else {
                         string currentPath = tab.CurrentPath;
                         if(fParent || ShellMethods.TryMakeSubDirTipPath(ref currentPath)) {
-                            if(subDirTip_Tab == null) {
-                                subDirTip_Tab = new SubDirTipForm(Handle, true, listView);
-                                subDirTip_Tab.MenuItemClicked += subDirTip_MenuItemClicked;
-                                subDirTip_Tab.MultipleMenuItemsClicked += subDirTip_MultipleMenuItemsClicked;
-                                subDirTip_Tab.MenuItemRightClicked += subDirTip_MenuItemRightClicked;
-                                subDirTip_Tab.MenuClosed += subDirTip_Tab_MenuClosed;
-                                subDirTip_Tab.MultipleMenuItemsRightClicked += subDirTip_MultipleMenuItemsRightClicked;
-                            }
+                            EnsureSubDirTip_Tab();
                             ContextMenuedTab = tab;
                             Point pnt = tabControl1.PointToScreen(new Point(tab.TabBounds.X + offsetX, fParent ? tab.TabBounds.Top : (tab.TabBounds.Bottom - 3)));
                             if(tab != CurrentTab) {
@@ -6798,6 +6848,20 @@ namespace QTTabBarLib {
         private void subDirTip_MenuItemClicked(object sender, ToolStripItemClickedEventArgs e) {
             QMenuItem clickedItem = (QMenuItem)e.ClickedItem;
             if(clickedItem.Target == MenuTarget.Folder) {
+                if(fFolderMenuFromCommandBar && subDirTip_Tab != null && sender == subDirTip_Tab) {
+                    Keys keys = ModifierKeys;
+                    using(IDLWrapper wrapper = clickedItem.IDLData != null
+                            ? new IDLWrapper(clickedItem.IDLData)
+                            : new IDLWrapper(clickedItem.TargetPath)) {
+                        if((keys & Keys.Control) == Keys.Control) {
+                            OpenNewWindow(wrapper);
+                        }
+                        else {
+                            OpenNewTab(wrapper, (keys & Keys.Shift) == Keys.Shift);
+                        }
+                    }
+                    return;
+                }
                 if(clickedItem.IDLData != null) {
                     using(IDLWrapper wrapper = new IDLWrapper(clickedItem.IDLData)) {
                         ShellBrowser.Navigate(wrapper);
@@ -6934,6 +6998,10 @@ namespace QTTabBarLib {
         private void subDirTip_Tab_MenuClosed(object sender, EventArgs e) {
             tabControl1.SetSubDirTipShown(false);
             tabControl1.RefreshFolderImage();
+            if(fFolderMenuFromCommandBar) {
+                // After the click (if any) has been handled.
+                BeginInvoke(new MethodInvoker(() => fFolderMenuFromCommandBar = false));
+            }
         }
 
         internal static void SyncTaskBarMenu() {

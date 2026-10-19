@@ -202,6 +202,14 @@ Language="1033"
                                 <RegistryValue Name="{d2bf470e-ed1c-487f-a666-2bd8835eb6ce}" Value="QTButtonBar" Type="string" Action="write" KeyPath="yes"/>
                             </RegistryKey>
                         </Component>
+                        <Component Id="QTCommandBar2Reg_$(var.arch)" Win64="$(var.win64)" DisableRegistryReflection="$(var.win64)">
+                            <?if $(var.arch) = x64?>
+                                <Condition>VersionNT64</Condition>
+                            <?endif?>
+                            <RegistryKey Root="HKLM" Key="Software\Microsoft\Internet Explorer\Toolbar"   ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
+                                <RegistryValue Name="{0215a1de-3818-44d4-a134-a44676cb5faf}" Value="QTCommandBar2" Type="string" Action="write" KeyPath="yes"/>
+                            </RegistryKey>
+                        </Component>
                         <Component Id="AutoLoaderReg_$(var.arch)" Win64="$(var.win64)" DisableRegistryReflection="$(var.win64)">
                             <?if $(var.arch) = x64?>
                                 <Condition>VersionNT64</Condition>
@@ -241,7 +249,7 @@ Language="1033"
                         <!-- COM Objects  Computer\HKEY_CLASSES_ROOT\CLSID\{D2BF470E-ED1C-487F-A777-2BD8835EB6CE}
                         Computer\HKEY_CURRENT_USER\Software\QTTabBar
                         -->
-                        <?foreach compName in QTTabBarClass;QTButtonBar;QTCoTaskBarClass;AutoLoader;ContextMenuOptions ?>
+                        <?foreach compName in QTTabBarClass;QTButtonBar;QTCoTaskBarClass;AutoLoader;ContextMenuOptions;QTCommandBar2;QTCommandBarVertical ?>
                             <?if $(var.compName) = QTTabBarClass?>
                                 <?define compGUID = {D2BF470E-ED1C-487F-A333-2BD8835EB6CE}?>
                                 <?define compDesc = QTTabBar?>
@@ -257,6 +265,12 @@ Language="1033"
                             <?elseif $(var.compName) = ContextMenuOptions?>
                                 <?define compGUID = {B3FFB6A3-3BC5-4D2F-8C49-6432D7174A3E}?>
                                 <?define compDesc = QTTabBar Options?>
+                            <?elseif $(var.compName) = QTCommandBar2?>
+                                <?define compGUID = {0215A1DE-3818-44D4-A134-A44676CB5FAF}?>
+                                <?define compDesc = QTTab Command Bar 2?>
+                            <?elseif $(var.compName) = QTCommandBarVertical?>
+                                <?define compGUID = {B29F2C4B-67B6-4ABF-97C4-2E10C4A06FB9}?>
+                                <?define compDesc = QTTab Vertical Command Bar?>
                             <?endif?>
                             <Component Id="$(var.compName)_$(var.arch)" Win64="$(var.win64)" DisableRegistryReflection="$(var.win64)">
                                 <?if $(var.compName) = QTCoTaskBarClass?>
@@ -275,7 +289,10 @@ Language="1033"
                                 <RegistryKey Root="HKCR" Key="CLSID\$(var.compGUID)" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
                                     <?if $(var.compName) = QTCoTaskBarClass?>
                                         <RegistryKey Key="Implemented Categories\{00021492-0000-0000-C000-000000000046}" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes" />
-                                    <?endif?>                                        
+                                    <?elseif $(var.compName) = QTCommandBarVertical?>
+                                        <!-- CATID_InfoBand: a vertical Explorer bar -->
+                                        <RegistryKey Key="Implemented Categories\{00021493-0000-0000-C000-000000000046}" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes" />
+                                    <?endif?>
                                     <RegistryKey Key="Implemented Categories\{62C8FE65-4EBB-45e7-B440-6E39B2CDBF29}" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes" />
                                     <RegistryValue Name="MenuText" Value="$(var.compDesc)" Type="string" Action="write" />
                                     <RegistryValue Name="HelpText" Value="$(var.compDesc)" Type="string" Action="write" />
@@ -328,6 +345,7 @@ Language="1033"
                 <!-- RegKeys -->
                 <ComponentRef Id="QTTabBarReg_$(var.arch)" />
                 <ComponentRef Id="QTButtonBarReg_$(var.arch)" />
+                <ComponentRef Id="QTCommandBar2Reg_$(var.arch)" />
                 <ComponentRef Id="AutoLoaderReg_$(var.arch)" />
                 <ComponentRef Id="ContextMenuHandlerReg_$(var.arch)" />
                 <ComponentRef Id="InstallDate_$(var.arch)" />
@@ -339,6 +357,8 @@ Language="1033"
                 <ComponentRef Id="QTButtonBar_$(var.arch)" />
                 <ComponentRef Id="AutoLoader_$(var.arch)" />
                 <ComponentRef Id="ContextMenuOptions_$(var.arch)" />
+                <ComponentRef Id="QTCommandBar2_$(var.arch)" />
+                <ComponentRef Id="QTCommandBarVertical_$(var.arch)" />
             <?endforeach?>
         </Feature>
 
