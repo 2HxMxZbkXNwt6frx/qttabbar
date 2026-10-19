@@ -71,6 +71,7 @@ namespace QTTabBarLib {
                 LayoutStyle = IsVerticalBar ? ToolStripLayoutStyle.VerticalStackWithOverflow : ToolStripLayoutStyle.HorizontalStackWithOverflow,
                 Padding = IsVerticalBar ? new Padding(2, 4, 2, 4) : new Padding(2, 0, 2, 0),
             };
+            toolStrip.KeyDown += toolStrip_KeyDown;
             barMenu = new ContextMenuStripEx(components, false);
             barMenu.Opening += barMenu_Opening;
             SuspendLayout();
@@ -183,6 +184,61 @@ namespace QTTabBarLib {
                 return;
             }
             base.WndProc(ref m);
+        }
+
+        // ---------------------------------------------------------------- keyboard
+
+        // "Focus the vertical command bar" shortcut: focus the first button of this window's bar.
+        // Then arrows move, Enter / Space press, the menu key opens the bar menu, Esc goes back to
+        // the file list.
+        internal static bool FocusVerticalBar(IntPtr frame) {
+            CommandBarBand bar;
+            lock(liveBars) bar = liveBars.FirstOrDefault(b => b.IsVerticalBar && b.FrameHandle == frame && b.IsHandleCreated && b.Visible);
+            if(bar == null) return false;
+            bar.toolStrip.Focus();
+            ToolStripItem first = bar.SelectableItems().FirstOrDefault();
+            if(first != null) first.Select();
+            return true;
+        }
+
+        private IEnumerable<ToolStripItem> SelectableItems() {
+            return toolStrip.Items.Cast<ToolStripItem>().Where(i => i.Tag is int && (int)i.Tag >= 0 && !(i is ToolStripSeparator) && i.Enabled && i.Visible);
+        }
+
+        private void toolStrip_KeyDown(object sender, KeyEventArgs e) {
+            List<ToolStripItem> items = SelectableItems().ToList();
+            if(items.Count == 0) return;
+            int index = items.FindIndex(i => i.Selected);
+            switch(e.KeyCode) {
+                case Keys.Up:
+                case Keys.Left:
+                    items[index <= 0 ? items.Count - 1 : index - 1].Select();
+                    break;
+                case Keys.Down:
+                case Keys.Right:
+                    items[index < 0 || index >= items.Count - 1 ? 0 : index + 1].Select();
+                    break;
+                case Keys.Home:
+                    items[0].Select();
+                    break;
+                case Keys.End:
+                    items[items.Count - 1].Select();
+                    break;
+                case Keys.Enter:
+                case Keys.Space:
+                    if(index >= 0) OnItemClicked(items[index], false);
+                    break;
+                case Keys.Apps:
+                    ShowBarMenu((IntPtr)(-1));
+                    break;
+                case Keys.Escape:
+                    QTTabBarClass tabBar = InstanceManager.GetThreadTabBar();
+                    if(tabBar != null && tabBar.GetListView() != null) tabBar.GetListView().SetFocus();
+                    break;
+                default:
+                    return;
+            }
+            e.Handled = true;
         }
 
         // ---------------------------------------------------------------- building the buttons

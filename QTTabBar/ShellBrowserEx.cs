@@ -349,16 +349,81 @@ namespace QTTabBarLib {
 
         // Selects every item, as the view's own Select all command does.
         public void SelectAll() {
+            const int FCIDM_SHVIEW_SELECTALL = 0x7021;
+            SendViewCommand(FCIDM_SHVIEW_SELECTALL);
+        }
+
+        // Creates a folder in the current folder and starts renaming it: the "NewFolder" verb of the
+        // view's background menu, which is what Explorer's own Ctrl+Shift+N runs.
+        public void NewFolder() {
+            IShellView shellView = folderView as IShellView;
+            if(shellView == null) return;
+            object obj = null;
+            IntPtr verb = IntPtr.Zero;
+            try {
+                // The verb doesn't start renaming here; find the new folder and do it like Explorer.
+                string folder = null;
+                using(IDLWrapper wrapper = GetShellPath()) {
+                    if(wrapper != null && wrapper.Available && Directory.Exists(wrapper.Path)) folder = wrapper.Path;
+                }
+                HashSet<string> before = folder == null ? null
+                        : new HashSet<string>(Directory.GetDirectories(folder), StringComparer.OrdinalIgnoreCase);
+                const uint SVGIO_BACKGROUND = 0;
+                Guid iid = typeof(IContextMenu).GUID;
+                if((int)shellView.GetItemObject(SVGIO_BACKGROUND, ref iid, out obj) != 0) return;
+                IContextMenu menu = obj as IContextMenu;
+                if(menu == null) return;
+                using(System.Windows.Forms.ContextMenu popup = new System.Windows.Forms.ContextMenu()) {
+                    const uint CMF_NORMAL = 0;
+                    menu.QueryContextMenu(popup.Handle, 0, 1, 0x7FFF, CMF_NORMAL);
+                    IntPtr hwnd;
+                    shellView.GetWindow(out hwnd);
+                    verb = Marshal.StringToHGlobalAnsi("NewFolder");
+                    CMINVOKECOMMANDINFO ici = new CMINVOKECOMMANDINFO {
+                        cbSize = Marshal.SizeOf(typeof(CMINVOKECOMMANDINFO)),
+                        hwnd = hwnd,
+                        lpVerb = verb,
+                        nShow = 1   // SW_SHOWNORMAL
+                    };
+                    menu.InvokeCommand(ref ici);
+                }
+                string created = before == null ? null : Directory.GetDirectories(folder).FirstOrDefault(d => !before.Contains(d));
+                if(created != null) SelectAndEdit(shellView, created);
+            }
+            catch(Exception e) {
+                QTUtility2.MakeErrorLog(e, "ShellBrowserEx NewFolder");
+            }
+            finally {
+                if(verb != IntPtr.Zero) Marshal.FreeHGlobal(verb);
+                if(obj != null) Marshal.ReleaseComObject(obj);
+            }
+        }
+
+        private static void SelectAndEdit(IShellView shellView, string path) {
+            IntPtr pidl = PInvoke.ILCreateFromPath(path);
+            if(pidl == IntPtr.Zero) return;
+            try {
+                shellView.Refresh();
+                IntPtr child = PInvoke.ILFindLastID(pidl);
+                if(child != IntPtr.Zero) {
+                    shellView.SelectItem(child, SVSIF.SELECT | SVSIF.DESELECTOTHERS | SVSIF.ENSUREVISIBLE | SVSIF.EDIT);
+                }
+            }
+            finally {
+                PInvoke.CoTaskMemFree(pidl);
+            }
+        }
+
+        private void SendViewCommand(int id) {
             IShellView shellView = folderView as IShellView;
             if(shellView == null) return;
             try {
                 IntPtr hwnd;
                 shellView.GetWindow(out hwnd);
-                const int FCIDM_SHVIEW_SELECTALL = 0x7021;
-                if(hwnd != IntPtr.Zero) PInvoke.SendMessage(hwnd, WM.COMMAND, (IntPtr)FCIDM_SHVIEW_SELECTALL, IntPtr.Zero);
+                if(hwnd != IntPtr.Zero) PInvoke.SendMessage(hwnd, WM.COMMAND, (IntPtr)id, IntPtr.Zero);
             }
             catch(COMException e) {
-                QTUtility2.MakeErrorLog(e, "ShellBrowserEx SelectAll");
+                QTUtility2.MakeErrorLog(e, "ShellBrowserEx view command " + id);
             }
         }
 

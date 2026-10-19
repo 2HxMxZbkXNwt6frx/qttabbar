@@ -174,7 +174,8 @@ $script:ForkActions = @(
     'NewFile', 'NewFolder', 'CopySelectedPaths', 'CopySelectedNames', 'CopyCurrentFolderPath',
     'CopyCurrentFolderName', 'ChecksumSelected', 'ToggleTopMost', 'TransparencyPlus', 'TransparencyMinus',
     'FocusFileList', 'FocusSearchBarReal', 'FocusSearchBarBBar', 'ShowSDTSelected', 'SendToTray',
-    'FocusTabBar', 'SortTabsByName', 'SortTabsByPath', 'SortTabsByActive'
+    'FocusTabBar', 'SortTabsByName', 'SortTabsByPath', 'SortTabsByActive', 'FocusTree', 'FocusVerticalCommandBar',
+    'CopySelectedToTab', 'MoveSelectedToTab', 'CopyFromFolder', 'MoveFromFolder', 'RenameCurrentFolder', 'CreateNewLibrary'
 )
 
 # System.Windows.Forms.Keys values used below.
@@ -211,7 +212,7 @@ $script:ForkDefaultKeys = [ordered]@{
 
 # Fork actions whose case in QTTabBarClass.DoBindAction is empty in this fork build: a key bound to
 # them is swallowed without effect, so 2048 bindings are not transferred to them.
-$script:ForkNoopActions = @('NewFolder', 'ShowRecentFilesMenu', 'SortTabsByName', 'SortTabsByPath', 'SortTabsByActive')
+$script:ForkNoopActions = @('SortTabsByName', 'SortTabsByPath', 'SortTabsByActive')
 
 # 2048 KeyShortcuts index -> fork BindAction (+ note for approximate equivalents).
 $script:KeyMap = @(
@@ -233,8 +234,15 @@ $script:KeyMap = @(
     @(41, 'ShowSDTSelected', ''), @(43, 'SendToTray', ''),
     @(51, 'NewFolder', ''), @(52, 'NewFile', ''), @(78, 'MergeWindows', ''), @(81, 'ShowRecentFilesMenu', ''),
     @(82, 'SwitchToLastActivated', ''),
-    @(100, 'FocusSearchBarBBar', 'approximate: fork focuses the search box of its button bar (2048: filter box)')
+    @(100, 'FocusSearchBarBBar', 'approximate: fork focuses the search box of its button bar (2048: filter box)'),
+    @(38, 'FocusTree', ''), @(40, 'FocusVerticalCommandBar', ''),
+    @(56, 'CopySelectedToTab', 'approximate: the target tab is picked from a menu'), @(57, 'MoveSelectedToTab', 'approximate: the target tab is picked from a menu'),
+    @(65, 'CopyFromFolder', 'approximate: the files are picked in a file dialog'), @(66, 'MoveFromFolder', 'approximate: the files are picked in a file dialog'),
+    @(79, 'CreateNewLibrary', ''), @(99, 'RenameCurrentFolder', '')
 )
+
+# 2048 shortcuts that Explorer itself has with the same keys (view modes): nothing to import.
+$script:ExplorerNativeKeys = @{ 125 = 'Ctrl+Shift+1'; 126 = 'Ctrl+Shift+2'; 127 = 'Ctrl+Shift+3'; 128 = 'Ctrl+Shift+4'; 129 = 'Ctrl+Shift+5'; 130 = 'Ctrl+Shift+6'; 131 = 'Ctrl+Shift+7'; 132 = 'Ctrl+Shift+8' }
 
 # 2048 BuiltinCommandID -> fork QTButtonBar BII_* index (-1 = no equivalent).
 $script:ButtonMap = @{
@@ -1384,13 +1392,17 @@ function Add-KeyboardWrites($Plan) {
     $mapped = @{}
     foreach ($m in $script:KeyMap) { $mapped[[int]$m[0]] = $m }
 
-    $stats = [ordered]@{ Enabled2048 = 0; Transferred = 0; Approximate = 0; NotTransferred = 0; Lost = 0; Cleared = 0; PassThroughStripped = 0 }
+    $stats = [ordered]@{ Enabled2048 = 0; Transferred = 0; Approximate = 0; NotTransferred = 0; Lost = 0; Cleared = 0; PassThroughStripped = 0; Native = 0 }
     $userChords = @{}     # chord -> fork slot it was transferred to
     for ($i = 0; $i -lt $user.Length; $i++) {
         $u = $user[$i]
         $enabled = ($u -band $script:FlagEnabled) -ne 0
         $b2name = $(if ($i -lt $script:Data.B2KeyNames.Count) { $script:Data.B2KeyNames[$i] } else { "#$i" })
         if ($enabled) { $stats.Enabled2048++ }
+        if (-not $mapped.ContainsKey($i) -and $enabled -and $script:ExplorerNativeKeys.ContainsKey($i) -and (Format-Chord $u) -eq $script:ExplorerNativeKeys[$i]) {
+            $stats.Native++
+            continue
+        }
         if (-not $mapped.ContainsKey($i)) {
             if ($enabled) { $stats.Lost++; $Plan.KeyLost.Add([pscustomobject]@{ B2 = $b2name; Index = $i; Chord = (Format-Chord $u); Reason = 'no fork action'; Value = $u }) }
             continue
@@ -1478,7 +1490,8 @@ function Add-KeyboardWrites($Plan) {
     $Plan.KeyStats = $stats
     $json = '[' + (($final | ForEach-Object { $_.ToString($script:Inv) }) -join ',') + ']'
     $bound = @($final | Where-Object { ($_ -band $script:FlagEnabled) -ne 0 }).Count
-    Add-Write $Plan 'Keys' 'Shortcuts' $json ("KeyboardShortcuts ({0} enabled in 2048)" -f $stats.Enabled2048) ("{0} of 50 fork actions bound" -f $bound)
+    Add-Write $Plan 'Keys' 'Shortcuts' $json ("KeyboardShortcuts ({0} enabled in 2048)" -f $stats.Enabled2048) ("{0} of {1} fork actions bound" -f $bound, $count)
+    if ($stats.Native -gt 0) { $Plan.Notes.Add("$($stats.Native) 2048 view-mode shortcuts (Ctrl+Shift+1..8) are built into Explorer itself; nothing to import.") }
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -1756,7 +1769,7 @@ function Get-DisplayValue($W) {
         'Font' { $p = ($W.Canonical -replace '^Font:', '') -split '\|'; if ($p.Count -eq 3) { return "$($p[0]), $($p[1])pt, style $($p[2])" } }
         'Padding' { return $W.Canonical -replace '^Pad:', 'l,t,r,b=' }
     }
-    if ($W.Key -eq 'Keys.Shortcuts') { return '50 slots (see keyboard table)' }
+    if ($W.Key -eq 'Keys.Shortcuts') { return "$($script:ForkActions.Count) slots (see keyboard table)" }
     return [string]$W.Value
 }
 
@@ -2258,12 +2271,13 @@ function Invoke-SelfTest {
     foreach ($r in $plan.KeyRows) { $rows[$r.Action] = $r.New }
     $kexp = [ordered]@{
         CloseCurrent = 'Ctrl+W'; ShowUserAppsMenu = 'Alt+A'; ShowRecentTabsMenu = 'Alt+H'; NewFile = 'Ctrl+Shift+T'; NewWindow = '(none)'
-        NewTab = 'Ctrl+T'; GoBack = 'Alt+Left'; CreateNewGroup = 'Ctrl+Shift+G'; NewFolder = '(none)'; ShowRecentFilesMenu = 'Alt+F'
+        NewTab = 'Ctrl+T'; GoBack = 'Alt+Left'; CreateNewGroup = 'Ctrl+Shift+G'; NewFolder = 'Ctrl+Shift+F'; ShowRecentFilesMenu = 'Alt+F'
         FocusSearchBarBBar = 'Alt+W'; ChecksumSelected = 'Ctrl+Shift+H'
     }
     foreach ($k in $kexp.get_Keys()) { Check "shortcut $k = $($kexp[$k])" ((Format-Shortcut $rows[$k]) -eq $kexp[$k]) (Format-Shortcut $rows[$k]) }
     $st = $plan.KeyStats
-    Check 'shortcuts: 51 enabled, 30 transferred, 2 not transferred, 19 lost' ($st.Enabled2048 -eq 51 -and $st.Transferred -eq 30 -and $st.NotTransferred -eq 2 -and $st.Lost -eq 19) (Format-Inv '{0}/{1}/{2}/{3}' $st.Enabled2048 $st.Transferred $st.NotTransferred $st.Lost)
+    Check 'shortcuts: 51 enabled, 40 transferred, 0 not transferred, 8 Explorer view modes, 3 lost' ($st.Enabled2048 -eq 51 -and $st.Transferred -eq 40 -and $st.NotTransferred -eq 0 -and $st.Native -eq 8 -and $st.Lost -eq 3) (Format-Inv '{0}/{1}/{2}/{3}/{4}' $st.Enabled2048 $st.Transferred $st.NotTransferred $st.Native $st.Lost)
+    Check 'shortcuts: Keys\Shortcuts has one slot per fork keyboard action' ((($pv['Keys.Shortcuts'] -split ',').Count) -eq $script:ForkActions.Count) "$($script:ForkActions.Count)"
     $conf = @($plan.KeyConflicts | Where-Object { $_.Displaced -eq 'NewWindow' })
     Check 'conflict: Ctrl+Shift+T displaces fork NewWindow' ($conf.Count -eq 1) "$($plan.KeyConflicts.Count) conflicts"
     Check 'button bar: 3 mapped, 2 lost' ($plan.Buttons.Mapped.Count -eq 3 -and $plan.Buttons.Lost.Count -eq 2) "$($plan.Buttons.Mapped.Count)/$($plan.Buttons.Lost.Count)"

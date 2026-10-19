@@ -294,7 +294,8 @@ namespace QTTabBarLib {
                     }
 
                     if(PInvoke.ShellExecuteEx(ref sei)) {
-                        StaticReg.ExecutedPathsList.Add(path);
+                        // Expanded: the recent files menu drops entries that don't exist as written.
+                        StaticReg.ExecutedPathsList.Add(Environment.ExpandEnvironmentVariables(path));
                         return;
                     }
                     const int ERROR_CANCELLED = 1223;   // e.g. the elevation prompt was declined

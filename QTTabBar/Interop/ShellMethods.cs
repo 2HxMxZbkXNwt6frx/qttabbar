@@ -123,6 +123,55 @@ namespace QTTabBarLib.Interop {
             return false;
         }
 
+        // Copies or moves files and folders into a folder with the shell's dialogs (progress,
+        // conflicts) and undo. False when nothing was done or the user cancelled.
+        public static bool CopyOrMoveFiles(List<string> lstPaths, string destFolder, bool fMove, IntPtr hwnd) {
+            if(lstPaths == null || lstPaths.Count == 0 || string.IsNullOrEmpty(destFolder)) return false;
+            using(SafePtr pFrom = new SafePtr(MakeFILEOPPATHS(lstPaths)))
+            using(SafePtr pTo = new SafePtr(destFolder + "\0\0")) {
+                const int FO_MOVE = 1, FO_COPY = 2;
+                const short FOF_ALLOWUNDO = 0x40;
+                SHFILEOPSTRUCT lpFileOp = new SHFILEOPSTRUCT {
+                    hwnd = hwnd,
+                    wFunc = fMove ? FO_MOVE : FO_COPY,
+                    pFrom = pFrom,
+                    pTo = pTo,
+                    fFlags = FOF_ALLOWUNDO
+                };
+                try {
+                    return PInvoke.SHFileOperation(ref lpFileOp) == 0 && !lpFileOp.fAnyOperationsAborted;
+                }
+                catch(Exception exception) {
+                    QTUtility2.MakeErrorLog(exception, "CopyOrMoveFiles");
+                    return false;
+                }
+            }
+        }
+
+        // Renames a file or folder with the shell (undo, its error dialogs).
+        public static bool RenameFile(string path, string newPath, IntPtr hwnd) {
+            if(string.IsNullOrEmpty(path) || string.IsNullOrEmpty(newPath)) return false;
+            using(SafePtr pFrom = new SafePtr(path + "\0\0"))
+            using(SafePtr pTo = new SafePtr(newPath + "\0\0")) {
+                const int FO_RENAME = 4;
+                const short FOF_ALLOWUNDO = 0x40;
+                SHFILEOPSTRUCT lpFileOp = new SHFILEOPSTRUCT {
+                    hwnd = hwnd,
+                    wFunc = FO_RENAME,
+                    pFrom = pFrom,
+                    pTo = pTo,
+                    fFlags = FOF_ALLOWUNDO
+                };
+                try {
+                    return PInvoke.SHFileOperation(ref lpFileOp) == 0 && !lpFileOp.fAnyOperationsAborted;
+                }
+                catch(Exception exception) {
+                    QTUtility2.MakeErrorLog(exception, "RenameFile");
+                    return false;
+                }
+            }
+        }
+
         public static DragDropEffects DoDragDrop(string path, Control control) {
             DragDropEffects none;
             if(string.IsNullOrEmpty(path)) {

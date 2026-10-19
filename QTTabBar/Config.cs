@@ -168,6 +168,16 @@ namespace QTTabBarLib {
         SortTabsByName,
         SortTabsByPath,
         SortTabsByActive,
+        // QTTabBar 2048 Beta2 shortcuts. Keyboard actions are stored by ordinal in Keys\Shortcuts:
+        // only ever append here (mouse-only actions start at FIRST_MOUSE_ONLY_ACTION).
+        FocusTree,
+        FocusVerticalCommandBar,
+        CopySelectedToTab,
+        MoveSelectedToTab,
+        CopyFromFolder,
+        MoveFromFolder,
+        RenameCurrentFolder,
+        CreateNewLibrary,
 
         KEYBOARD_ACTION_COUNT,
         // Mouse-only from here on down

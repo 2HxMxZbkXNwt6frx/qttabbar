@@ -125,6 +125,9 @@
     </Compile>
     <Compile Include="CommandBars\CommandBarIcons.cs" />
     <Compile Include="CommandBars\CommandBarItem.cs" />
+    <Compile Include="InputNameForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="CommandBars\CommandBarItemForm.cs">
       <SubType>Form</SubType>
     </Compile>

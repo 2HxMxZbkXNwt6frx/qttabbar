@@ -2129,8 +2129,31 @@ namespace QTTabBarLib {
                     }
                     break;
 
-                // TODO all the blank ones
                 case BindAction.NewFolder:
+                    ShellBrowser.NewFolder();
+                    break;
+
+                case BindAction.FocusTree:
+                    return FocusNavigationTree();
+
+                case BindAction.FocusVerticalCommandBar:
+                    return CommandBarBand.FocusVerticalBar(ExplorerHandle);
+
+                case BindAction.CopySelectedToTab:
+                case BindAction.MoveSelectedToTab:
+                    return ShowCopyToTabMenu(action == BindAction.MoveSelectedToTab);
+
+                case BindAction.CopyFromFolder:
+                case BindAction.MoveFromFolder:
+                    CopyFromFolder(action == BindAction.MoveFromFolder);
+                    break;
+
+                case BindAction.RenameCurrentFolder:
+                    RenameCurrentFolder();
+                    break;
+
+                case BindAction.CreateNewLibrary:
+                    CreateNewLibrary();
                     break;
                 case BindAction.NewFile:
                     createNewFile();
@@ -2151,7 +2174,7 @@ namespace QTTabBarLib {
                     break;
 
                 case BindAction.ShowRecentFilesMenu:
-                    break;
+                    return ShowRecentFilesMenu();
                 case BindAction.SortTabsByName:
                     break;
                 case BindAction.SortTabsByPath:
@@ -5291,6 +5314,19 @@ namespace QTTabBarLib {
                 DoBindAction(action);
                 return true;
             }
+            // A file opened by double-click goes to the recent files menu (the view's own item
+            // activation isn't seen on current Windows builds). Explorer still opens it.
+            if(chord == MouseChord.Double && Config.Misc.KeepRecentFiles) {
+                int index = listView.HitTest(pt, false);
+                if(index > -1) {
+                    using(IDLWrapper wrapper = ShellBrowser.GetItem(index)) {
+                        if(wrapper != null && wrapper.Available && wrapper.IsFileSystemFile && File.Exists(wrapper.Path)) {
+                            StaticReg.ExecutedPathsList.Add(wrapper.Path);
+                        }
+                    }
+                }
+                return false;
+            }
             // Double-click on a folder with a bound chord (e.g. Ctrl: new tab, as in 2048 Beta2).
             // Files and unbound chords keep Explorer's own double-click.
             if(chord != MouseChord.Double && Config.Mouse.ItemActions.TryGetValue(chord, out action)) {
@@ -6745,6 +6781,158 @@ namespace QTTabBarLib {
             if(g == null) return;
             foreach(string path in g.Paths) {
                 OpenNewTab(path, true);
+            }
+        }
+
+        // ---------------------------------------------------------------- 2048 Beta2 shortcuts
+
+        // Where a menu opened by a shortcut appears: under the current tab.
+        private Point ShortcutMenuPoint() {
+            Rectangle r = CurrentTab != null ? CurrentTab.TabBounds : Rectangle.Empty;
+            return tabControl1.PointToScreen(new Point(r.Left, r.Bottom));
+        }
+
+        private bool FocusNavigationTree() {
+            IntPtr tree = WindowUtils.FindChildWindow(ExplorerHandle,
+                    hwnd => PInvoke.GetClassName(hwnd) == "SysTreeView32" && PInvoke.IsWindowVisible(hwnd));
+            if(tree == IntPtr.Zero) return false;
+            PInvoke.SetFocus(tree);
+            return true;
+        }
+
+        private DropDownMenuReorderable ddmrRecentFiles;
+
+        // Files started from QTTabBar (Applications, command bars, ...), newest first.
+        private bool ShowRecentFilesMenu() {
+            List<ToolStripItem> items = MenuUtility.CreateRecentFilesItems();
+            if(items.Count == 0) {
+                QTUtility.SoundPlay();
+                return true;
+            }
+            if(ddmrRecentFiles == null) {
+                ddmrRecentFiles = new DropDownMenuReorderable(components);
+                ddmrRecentFiles.ReorderEnabled = false;
+                ddmrRecentFiles.MessageParent = Handle;
+                ddmrRecentFiles.ImageList = QTUtility.ImageListGlobal;
+                ddmrRecentFiles.ItemClicked += menuitemExecuted_DropDownItemClicked;
+                ddmrRecentFiles.ItemRightClicked += menuitemExecuted_ItemRightClicked;
+            }
+            while(ddmrRecentFiles.Items.Count > 0) {
+                ddmrRecentFiles.Items[0].Dispose();
+            }
+            ddmrRecentFiles.SuspendLayout();
+            ddmrRecentFiles.Items.AddRange(items.ToArray());
+            ddmrRecentFiles.ResumeLayout();
+            ddmrRecentFiles.Show(ShortcutMenuPoint());
+            return true;
+        }
+
+        // File system paths of the selected items.
+        private List<string> GetSelectedFileSystemPaths() {
+            List<string> paths = new List<string>();
+            Address[] selection;
+            if(ShellBrowser.TryGetSelection(out selection, false) && selection != null) {
+                foreach(Address address in selection) {
+                    string path = address.Path;
+                    if(!string.IsNullOrEmpty(path) && !path.StartsWith("::") && (File.Exists(path) || Directory.Exists(path))) {
+                        paths.Add(path);
+                    }
+                }
+            }
+            return paths;
+        }
+
+        private string CurrentFileSystemFolder() {
+            string path = CurrentTab != null ? CurrentTab.CurrentPath : null;
+            return !string.IsNullOrEmpty(path) && !path.StartsWith("::") && Directory.Exists(path) ? path : null;
+        }
+
+        // Copies or moves on a separate thread so the window stays usable; the shell shows its own
+        // progress and conflict dialogs.
+        private void StartCopyOrMove(List<string> paths, string destFolder, bool move) {
+            IntPtr hwnd = ExplorerHandle;
+            Thread thread = new Thread(() => ShellMethods.CopyOrMoveFiles(paths, destFolder, move, hwnd)) { IsBackground = true };
+            thread.SetApartmentState(ApartmentState.STA);
+            thread.Start();
+        }
+
+        // Copy / move the selection to the folder of another tab, picked from a menu.
+        private bool ShowCopyToTabMenu(bool move) {
+            List<string> paths = GetSelectedFileSystemPaths();
+            if(paths.Count == 0) {
+                QTUtility.SoundPlay();
+                return true;
+            }
+            bool ja = QTUtility.IsJapanese;
+            ContextMenuStripEx menu = new ContextMenuStripEx(null, false);
+            menu.Items.Add(new ToolStripMenuItem(move ? (ja ? "選択項目の移動先:" : "Move selected items to:") : (ja ? "選択項目のコピー先:" : "Copy selected items to:")) { Enabled = false });
+            menu.Items.Add(new ToolStripSeparator());
+            foreach(QTabItem tab in tabControl1.TabPages) {
+                if(tab == CurrentTab) continue;
+                string target = tab.CurrentPath;
+                if(string.IsNullOrEmpty(target) || target.StartsWith("::") || !Directory.Exists(target)) continue;
+                ToolStripMenuItem item = new ToolStripMenuItem(tab.Text) { ToolTipText = target };
+                item.Click += (sender, e) => StartCopyOrMove(paths, target, move);
+                menu.Items.Add(item);
+            }
+            if(menu.Items.Count == 2) {
+                menu.Dispose();
+                QTUtility.SoundPlay();
+                return true;
+            }
+            menu.Closed += (sender, e) => BeginInvoke(new MethodInvoker(menu.Dispose));
+            menu.Show(ShortcutMenuPoint());
+            return true;
+        }
+
+        // Copy / move files picked in a file dialog into the current folder.
+        private void CopyFromFolder(bool move) {
+            string dest = CurrentFileSystemFolder();
+            if(dest == null) {
+                QTUtility.SoundPlay();
+                return;
+            }
+            bool ja = QTUtility.IsJapanese;
+            using(System.Windows.Forms.OpenFileDialog dialog = new System.Windows.Forms.OpenFileDialog {
+                    Multiselect = true, CheckFileExists = true, DereferenceLinks = false,
+                    Title = move ? (ja ? "ここへ移動するファイル" : "Files to move here") : (ja ? "ここへコピーするファイル" : "Files to copy here") }) {
+                if(dialog.ShowDialog(this) != DialogResult.OK || dialog.FileNames.Length == 0) return;
+                StartCopyOrMove(dialog.FileNames.ToList(), dest, move);
+            }
+        }
+
+        private void RenameCurrentFolder() {
+            string path = CurrentFileSystemFolder();
+            if(path == null || string.Equals(Path.GetPathRoot(path), path.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase)) {
+                QTUtility.SoundPlay();   // not a file system folder, or a drive root
+                return;
+            }
+            path = path.TrimEnd('\\');
+            bool ja = QTUtility.IsJapanese;
+            string name = Path.GetFileName(path);
+            string newName = InputNameForm.Ask(this, ja ? "フォルダー名の変更" : "Rename folder", ja ? "新しい名前:" : "New name:", name);
+            if(newName == null) return;
+            string newPath = Path.Combine(Path.GetDirectoryName(path), newName);
+            if(ShellMethods.RenameFile(path, newPath, ExplorerHandle) && Directory.Exists(newPath)) {
+                using(IDLWrapper wrapper = new IDLWrapper(newPath)) {
+                    if(wrapper.Available) ShellBrowser.Navigate(wrapper);
+                }
+            }
+        }
+
+        private void CreateNewLibrary() {
+            bool ja = QTUtility.IsJapanese;
+            string name = InputNameForm.Ask(this, ja ? "新しいライブラリ" : "New library", ja ? "ライブラリ名:" : "Library name:", ja ? "新しいライブラリ" : "New Library");
+            if(name == null) return;
+            try {
+                using(ShellLibrary library = new ShellLibrary(name, false))
+                using(IDLWrapper wrapper = new IDLWrapper(library.ParsingName)) {
+                    if(wrapper.Available) OpenNewTab(wrapper);
+                }
+            }
+            catch(Exception ex) {
+                QTUtility2.MakeErrorLog(ex, "CreateNewLibrary");
+                QTUtility.SoundPlay();
             }
         }
 

@@ -29,6 +29,12 @@ namespace QTTabBar.Tests {
         [TestMethod] public void BindAction_TearOffCurrent_Is19()      => Assert.AreEqual(19, (int)BindAction.TearOffCurrent);
         [TestMethod] public void BindAction_LockCurrent_Is20()         => Assert.AreEqual(20, (int)BindAction.LockCurrent);
 
+        // Keyboard actions added for 2048 Beta2 parity (appended; Keys\Shortcuts is indexed by these).
+        [TestMethod] public void BindAction_SortTabsByActive_Is49()     => Assert.AreEqual(49, (int)BindAction.SortTabsByActive);
+        [TestMethod] public void BindAction_FocusTree_Is50()            => Assert.AreEqual(50, (int)BindAction.FocusTree);
+        [TestMethod] public void BindAction_CreateNewLibrary_Is57()     => Assert.AreEqual(57, (int)BindAction.CreateNewLibrary);
+        [TestMethod] public void BindAction_KeyboardActionCount_Is58()  => Assert.AreEqual(58, (int)BindAction.KEYBOARD_ACTION_COUNT);
+
         // Mouse-only actions are stored in Config\Mouse (and written by Import-QTTabBar2048Settings).
         [TestMethod] public void BindAction_Nothing_Is1000()                => Assert.AreEqual(1000, (int)BindAction.Nothing);
         [TestMethod] public void BindAction_ItemOpenInNewTab_Is1006()       => Assert.AreEqual(1006, (int)BindAction.ItemOpenInNewTab);
