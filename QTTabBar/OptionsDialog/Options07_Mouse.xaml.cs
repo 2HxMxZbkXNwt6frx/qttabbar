@@ -141,8 +141,9 @@ namespace QTTabBarLib {
 
                 // add by qwop start  comment 2012, 08,12, 23:13
                 BindAction.OpenCmd,
-                BindAction.ItemsOpenInNewTabNoSel
+                BindAction.ItemsOpenInNewTabNoSel,
                 // add by qwop end.
+                BindAction.SelectAll,
             }},
         };
 
@@ -159,6 +160,7 @@ namespace QTTabBarLib {
             }},
             {MouseTarget.ExplorerItem, new MouseChord[] {
                 MouseChord.Middle,
+                MouseChord.Double,   // folders only, and only with Ctrl / Shift / Alt
             }},
             {MouseTarget.FolderLink, new MouseChord[] {
                 MouseChord.Left,

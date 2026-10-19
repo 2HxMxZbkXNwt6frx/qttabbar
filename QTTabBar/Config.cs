@@ -217,6 +217,8 @@ namespace QTTabBarLib {
         , SortTab
         , TurnOffRepeat
         //add bool indiff 2019 12 16 19:27
+        // Explorer background: select all items (2048 Beta2's "Select All").
+        , SelectAll
         , KEYBOARD_ACTION_COUNT2
     }
 

@@ -23,9 +23,10 @@
         as not imported
       - groups (HKCU\Software\QTTabBar\Groups): 2048 groups whose name the fork doesn't have yet are
         appended, their folder PIDLs resolved to paths on this machine; existing groups are kept
+      - mouse bindings of tabs, the tab bar, folder icons and the view background (Mouse\TabActions,
+        BarActions, ItemActions, MarginActions), starting from the fork defaults
     and reports what it cannot map: 2048-only options you changed, lost shortcuts, mouse bindings
-    (left at fork defaults, differences listed), plugins and application launchers (skipped by
-    design).
+    without a fork equivalent, plugins and application launchers (skipped by design).
 
     Keyboard policy: the fork's default shortcut table is the base. Every fork action that has a
     2048 counterpart takes the 2048 binding (a binding you cleared in 2048 clears the fork default;
@@ -74,7 +75,7 @@
 
 .PARAMETER Only
     Restrict writing to these fork categories: Window, Tabs, Tweaks, Tips, Misc, Skin, BBar, CmdBars,
-    Keys, Desktop, Groups (list or one comma-separated string, e.g. -Only CmdBars,Groups). The report
+    Keys, Mouse, Desktop, Groups (list or one comma-separated string, e.g. -Only CmdBars,Groups). The report
     still lists everything.
 
 .PARAMETER ReportPath
@@ -140,7 +141,7 @@ $ErrorActionPreference = 'Stop'
 $script:Inv = [System.Globalization.CultureInfo]::InvariantCulture
 $script:RegRoot = 'Software\QTTabBar'
 $script:RegConfig = 'Software\QTTabBar\Config'
-$script:CategoryOrder = @('Window', 'Tabs', 'Tweaks', 'Tips', 'Misc', 'Skin', 'BBar', 'CmdBars', 'Keys', 'Desktop')
+$script:CategoryOrder = @('Window', 'Tabs', 'Tweaks', 'Tips', 'Misc', 'Skin', 'BBar', 'CmdBars', 'Keys', 'Mouse', 'Desktop')
 # -Only also accepts 'Groups' (HKCU\Software\QTTabBar\Groups, not a Config category).
 $script:GroupsCategory = 'Groups'
 
@@ -378,10 +379,11 @@ $script:MouseEquiv = @{
     Tab            = @{ 0 = 'CloseTab'; 1 = 'UpOneLevelTab'; 2 = 'LockTab'; 3 = 'ShowTabMenu'; 4 = 'TearOffTab'; 5 = 'CloneTab'; 6 = 'CopyTabPath'; 7 = 'TabProperties'; 8 = 'ShowTabSubfolderMenu' }
     TabDouble      = @{ 0 = 'CloseTab'; 1 = 'UpOneLevelTab'; 2 = 'LockTab'; 3 = 'ShowTabMenu'; 4 = 'TearOffTab'; 5 = 'CloneTab'; 6 = 'CopyTabPath'; 7 = 'TabProperties'; 8 = 'ShowTabSubfolderMenu' }
     TabBar         = @{ 0 = 'UpOneLevel'; 1 = 'BrowseFolder'; 2 = 'CloseAllButCurrent'; 3 = 'LockAll'; 4 = 'ShowToolbarMenu'; 5 = 'RestoreLastClosed'; 6 = 'ShowOptions'; 7 = 'CloseWindow'; 8 = 'CloneCurrent'; 9 = 'SwitchToLastActivated' }
-    ViewIcon       = @{ 0 = 'ItemOpenInNewTab'; 1 = 'ItemOpenInNewTabNoSel'; 12 = 'ItemOpenInNewWindow'; 13 = 'ItemCopy'; 14 = 'ItemCut'; 16 = 'ItemProperties'; 17 = 'CopyItemPath' }
-    ViewIconMiddle = @{ 0 = 'ItemOpenInNewTab'; 1 = 'ItemOpenInNewTabNoSel'; 12 = 'ItemOpenInNewWindow'; 13 = 'ItemCopy'; 14 = 'ItemCut'; 16 = 'ItemProperties'; 17 = 'CopyItemPath' }
+    # Extra View variants (3..11) act on the current view, as in the command bars.
+    ViewIcon       = @{ 0 = 'ItemOpenInNewTab'; 1 = 'ItemOpenInNewTabNoSel'; 3 = 'ItemOpenInNewTab'; 4 = 'ItemOpenInNewTabNoSel'; 6 = 'ItemOpenInNewTab'; 7 = 'ItemOpenInNewTabNoSel'; 9 = 'ItemOpenInNewTab'; 10 = 'ItemOpenInNewTabNoSel'; 12 = 'ItemOpenInNewWindow'; 13 = 'ItemCopy'; 14 = 'ItemCut'; 16 = 'ItemProperties'; 17 = 'CopyItemPath' }
+    ViewIconMiddle = @{ 0 = 'ItemOpenInNewTab'; 1 = 'ItemOpenInNewTabNoSel'; 3 = 'ItemOpenInNewTab'; 4 = 'ItemOpenInNewTabNoSel'; 6 = 'ItemOpenInNewTab'; 7 = 'ItemOpenInNewTabNoSel'; 9 = 'ItemOpenInNewTab'; 10 = 'ItemOpenInNewTabNoSel'; 12 = 'ItemOpenInNewWindow'; 13 = 'ItemCopy'; 14 = 'ItemCut'; 16 = 'ItemProperties'; 17 = 'CopyItemPath' }
     ViewFileIcon   = @{ 0 = 'ItemCopy'; 1 = 'ItemCut'; 2 = 'ItemProperties'; 3 = 'CopyItemPath' }
-    ViewBackground = @{ 0 = 'UpOneLevel'; 1 = 'BrowseFolder'; 2 = 'NewWindow'; 3 = 'CloneCurrent'; 4 = 'CopyCurrentFolderPath'; 5 = 'CopyCurrentFolderName'; 7 = 'CloseWindow'; 8 = 'CloseCurrent'; 11 = 'NewFolder'; 12 = 'NewFile'; 16 = 'Paste' }
+    ViewBackground = @{ 0 = 'UpOneLevel'; 1 = 'BrowseFolder'; 2 = 'NewWindow'; 3 = 'CloneCurrent'; 4 = 'CopyCurrentFolderPath'; 5 = 'CopyCurrentFolderName'; 7 = 'CloseWindow'; 8 = 'CloseCurrent'; 9 = 'SelectAll'; 11 = 'NewFolder'; 12 = 'NewFile'; 16 = 'Paste' }
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -573,6 +575,7 @@ function ConvertTo-Canonical([string]$Type, $Value) {
             return 'Pad:' + $vals['left'] + ',' + $vals['top'] + ',' + $vals['right'] + ',' + $vals['bottom']
         }
         '^CommandBarItem\[\]$' { return (ConvertTo-CmdItemsCanonical ([string]$Value)) }
+        '^Dictionary<MouseChord,BindAction>$' { return (ConvertTo-MouseDictCanonical ([string]$Value)) }
         '\[\]$' { return (([string]$Value) -replace '\s', '') }
         default { return [string]$Value }
     }
@@ -1553,6 +1556,129 @@ function Add-MouseReport($Plan) {
     }
 }
 
+# Fork mouse-only BindAction members from QTUtility.FIRST_MOUSE_ONLY_ACTION (1000) on (Config.cs,
+# persisted ordinals).
+$script:ForkMouseActions = @(
+    'Nothing', 'UpOneLevel', 'Refresh', 'Paste', 'Maximize', 'Minimize', 'ItemOpenInNewTab', 'ItemOpenInNewTabNoSel',
+    'ItemOpenInNewWindow', 'ItemCut', 'ItemCopy', 'ItemDelete', 'ItemProperties', 'CopyItemPath', 'CopyItemName',
+    'ChecksumItem', 'CloseTab', 'CloseLeftTab', 'CloseRightTab', 'UpOneLevelTab', 'LockTab', 'ShowTabMenu', 'TearOffTab',
+    'CloneTab', 'CopyTabPath', 'TabProperties', 'ShowTabSubfolderMenu', 'CloseAllButThis', 'OpenCmd',
+    'ItemsOpenInNewTabNoSel', 'SortTab', 'TurnOffRepeat', 'SelectAll'
+)
+$script:FirstMouseOnlyAction = 1000
+
+function Get-ForkActionValue([string]$Name) {
+    $i = [array]::IndexOf($script:ForkActions, $Name)
+    if ($i -ge 0) { return $i }
+    $i = [array]::IndexOf($script:ForkMouseActions, $Name)
+    if ($i -ge 0) { return $script:FirstMouseOnlyAction + $i }
+    throw "Internal error: unknown fork action $Name."
+}
+
+function Get-ForkActionName([int]$Value) {
+    if ($Value -ge 0 -and $Value -lt $script:ForkActions.Count) { return $script:ForkActions[$Value] }
+    $i = $Value - $script:FirstMouseOnlyAction
+    if ($i -ge 0 -and $i -lt $script:ForkMouseActions.Count) { return $script:ForkMouseActions[$i] }
+    return "#$Value"
+}
+
+# 'Ctrl+Shift+Middle' -> fork MouseChord flags (Shift 1, Ctrl 2, Alt 4, Left 8, Middle 32, Double 64).
+function ConvertTo-ForkChord([string]$Chord) {
+    $v = 0
+    foreach ($p in $Chord -split '\+') {
+        switch ($p) { 'Shift' { $v += 1 } 'Ctrl' { $v += 2 } 'Alt' { $v += 4 } 'Left' { $v += 8 } 'Middle' { $v += 32 } 'Double' { $v += 64 } default { throw "Internal error: chord part $p." } }
+    }
+    return $v
+}
+
+# Dictionary<MouseChord, BindAction> as DataContractJsonSerializer writes it.
+function New-MouseDictJson($Dict) {
+    $pairs = @($Dict.get_Keys() | Sort-Object | ForEach-Object { '{"Key":' + ([int]$_).ToString($script:Inv) + ',"Value":' + ([int]$Dict[$_]).ToString($script:Inv) + '}' })
+    return '[' + ($pairs -join ',') + ']'
+}
+
+function ConvertTo-MouseDictCanonical([string]$Json) {
+    $pairs = @([regex]::Matches($Json, '"Key"\s*:\s*(-?\d+)\s*,\s*"Value"\s*:\s*(-?\d+)') | ForEach-Object { [pscustomobject]@{ K = [int]$_.Groups[1].Value; V = [int]$_.Groups[2].Value } } | Sort-Object K)
+    return (($pairs | ForEach-Object { "$($_.K)=$($_.V)" }) -join ';')
+}
+
+# 2048 Events/Interactive bindings -> fork Mouse\TabActions, BarActions, ItemActions, MarginActions.
+# Each target starts from the fork defaults; a 2048 slot with an equivalent fork action replaces the
+# fork binding for that chord, a slot set to nothing removes it, anything else keeps the fork default
+# and is listed. Plain left click on tabs / the tab bar and plain double click on items stay with
+# Explorer and QTTabBar (never bound). 2048's file-icon middle click has no separate fork target.
+function Add-MouseWrites($Plan) {
+    $lost = New-Object System.Collections.Generic.List[object]
+    $Plan | Add-Member -NotePropertyName MouseLost -NotePropertyValue $lost -Force
+    $targets = [ordered]@{}
+    foreach ($t in 'TabActions', 'BarActions', 'ItemActions', 'MarginActions') {
+        $d = @{}
+        foreach ($chord in @($script:ForkMouseDefaults[$t].get_Keys())) { $d[(ConvertTo-ForkChord $chord)] = (Get-ForkActionValue $script:ForkMouseDefaults[$t][$chord]) }
+        $script:ForkDefaults["Mouse.$t"] = ConvertTo-MouseDictCanonical (New-MouseDictJson $d)
+        $targets[$t] = [pscustomobject]@{ Dict = $d; Sources = New-Object System.Collections.Generic.List[string] }
+    }
+    $any = $false
+    foreach ($src in $script:Data.B2MouseSources) {
+        $name = $src.Name
+        if (-not $script:MouseTargets.Contains($name)) { continue }
+        if (-not $Plan.B2.Mouse.Contains($name)) { continue }
+        $target = $script:MouseTargets[$name][0]; $button = $script:MouseTargets[$name][1]
+        $vals = $Plan.B2.Mouse[$name]
+        if ($name -eq 'ViewFileIconMiddleClick') {
+            for ($slot = 0; $slot -lt 8; $slot++) {
+                $v = $vals[$slot]
+                if ($v -ne -1 -and $v -ne $script:Data.B2MouseLists[$src.List].Count - 1) {
+                    $lost.Add([pscustomobject]@{ Source = $name; Chord = (@($script:SlotNames[$slot], $button) | Where-Object { $_ }) -join '+'; Yours = (Get-MouseLabel $src.List $v); Reason = 'the fork has one middle-click binding for files and folders' })
+                }
+            }
+            continue
+        }
+        $any = $true
+        $entry = $targets[$target]
+        $entry.Sources.Add($name)
+        $lastIdx = $script:Data.B2MouseLists[$src.List].Count - 1
+        for ($slot = 0; $slot -lt 8; $slot++) {
+            $mods = $script:SlotNames[$slot]
+            $chordText = $(if ($mods) { "$mods+$button" } else { $button })
+            $chord = ConvertTo-ForkChord $chordText
+            $v = $vals[$slot]
+            $nothing = ($v -eq -1 -or $v -eq $lastIdx)
+            $plain = (-not $mods) -and (($button -eq 'Left' -and ($target -eq 'TabActions' -or $target -eq 'BarActions')) -or ($button -eq 'Double' -and $target -eq 'ItemActions'))
+            if ($plain) {
+                if (-not $nothing) { $lost.Add([pscustomobject]@{ Source = $name; Chord = $chordText; Yours = (Get-MouseLabel $src.List $v); Reason = 'plain clicks stay with Explorer / QTTabBar' }) }
+                continue
+            }
+            if ($nothing) { [void]$entry.Dict.Remove($chord); continue }
+            $equiv = $null
+            if ($script:MouseEquiv.ContainsKey($src.List) -and $script:MouseEquiv[$src.List].ContainsKey($v)) { $equiv = $script:MouseEquiv[$src.List][$v] }
+            if ($null -eq $equiv) {
+                $lost.Add([pscustomobject]@{ Source = $name; Chord = $chordText; Yours = (Get-MouseLabel $src.List $v); Reason = 'no fork equivalent (fork default kept)' })
+                continue
+            }
+            $entry.Dict[$chord] = Get-ForkActionValue $equiv
+        }
+    }
+    if (-not $any) { return }
+    foreach ($t in @($targets.get_Keys())) {
+        $e = $targets[$t]
+        if ($e.Sources.Count -eq 0) { continue }
+        Add-Write $Plan 'Mouse' $t (New-MouseDictJson $e.Dict) ('Events/Interactive: ' + ($e.Sources -join ', ')) ((@($e.Dict.get_Keys() | Sort-Object | ForEach-Object { (Format-ForkChord $_) + '=' + (Get-ForkActionName $e.Dict[$_]) })) -join ', ')
+    }
+}
+
+function Format-ForkChord([int]$Chord) {
+    $p = @()
+    if ($Chord -band 2) { $p += 'Ctrl' }
+    if ($Chord -band 1) { $p += 'Shift' }
+    if ($Chord -band 4) { $p += 'Alt' }
+    if ($Chord -band 8) { $p += 'Left' }
+    if ($Chord -band 32) { $p += 'Middle' }
+    if ($Chord -band 64) { $p += 'Double' }
+    if ($Chord -band 128) { $p += 'X1' }
+    if ($Chord -band 256) { $p += 'X2' }
+    return ($p -join '+')
+}
+
 # ---------------------------------------------------------------------------------------------
 # HKCU comparison, output
 # ---------------------------------------------------------------------------------------------
@@ -1728,9 +1854,9 @@ function Get-ConsoleLines($Plan, [bool]$IsApply) {
     if ($null -ne $Plan.Mouse) {
         $m = $Plan.Mouse
         $diff = @($m.Compare | Where-Object { $_.State -eq 'DIFFERENT' })
-        $o.Add("Mouse bindings: NOT imported, fork defaults stay ($($m.UserChanges.Count) of your bindings differ from 2048 defaults; $($diff.Count) compared bindings behave differently in the fork)")
+        $o.Add("Mouse bindings -> Mouse\TabActions, BarActions, ItemActions, MarginActions ($($m.UserChanges.Count) of your bindings differ from 2048 defaults; $($diff.Count) differ from the fork defaults; $($Plan.MouseLost.Count) not importable)")
         foreach ($c in $m.UserChanges) { $o.Add("  yours vs 2048 default: $($c.Source) [$($c.Modifiers)]: $($c.Yours) (2048 default: $($c.Default2048))") }
-        foreach ($c in $diff) { $o.Add("  2048 vs fork: $($c.Source) -> $($c.Chord): yours = $($c.Yours); fork default = $($c.ForkDefault)") }
+        foreach ($c in $diff) { $o.Add("  changed from the fork default: $($c.Source) -> $($c.Chord): yours = $($c.Yours); fork default = $($c.ForkDefault)") }
         $o.Add('')
     }
 
@@ -1771,7 +1897,7 @@ function Get-MarkdownReport($Plan) {
     if ($null -ne $s) { $o.Add((Format-Inv '- Shortcuts: {0} enabled in 2048; {1} transferred ({2} approximate); {3} not transferred (empty fork handler); {4} lost; {5} conflicts' $s.Enabled2048 $s.Transferred $s.Approximate $s.NotTransferred $s.Lost $Plan.KeyConflicts.Count)) }
     if ($null -ne $Plan.Buttons) { $o.Add("- Button bar: $($Plan.Buttons.Mapped.Count) of $($Plan.Buttons.Mapped.Count + $Plan.Buttons.Lost.Count) first-bar buttons mapped") }
     $o.Add("- 2048-only options you changed: $($Plan.UnmappedChanged.Count) (another $($Plan.UnmappedAtDefault) unmapped sections are at 2048 defaults)")
-    if ($null -ne $Plan.Mouse) { $o.Add("- Mouse: not imported; $($Plan.Mouse.UserChanges.Count) of your bindings differ from 2048 defaults, $(@($Plan.Mouse.Compare | Where-Object { $_.State -eq 'DIFFERENT' }).Count) compared bindings behave differently under fork defaults") }
+    if ($null -ne $Plan.Mouse) { $o.Add("- Mouse: imported; $($Plan.Mouse.UserChanges.Count) of your bindings differ from 2048 defaults, $(@($Plan.Mouse.Compare | Where-Object { $_.State -eq 'DIFFERENT' }).Count) differ from the fork defaults, $($Plan.MouseLost.Count) not importable") }
     $o.Add('')
     $o.Add('## Values to write')
     foreach ($cat in $script:CategoryOrder) {
@@ -1880,7 +2006,13 @@ function Get-MarkdownReport($Plan) {
     $o.Add("$($Plan.EmptyXml) further elements are empty.")
     if ($null -ne $Plan.Mouse) {
         $o.Add('')
-        $o.Add('## Mouse bindings (not imported; fork defaults stay)')
+        $o.Add('## Mouse bindings (imported into Mouse\*Actions)')
+        if ($Plan.MouseLost.Count -gt 0) {
+            $o.Add('')
+            $o.Add('Not importable:')
+            $o.Add('')
+            foreach ($c in $Plan.MouseLost) { $o.Add('- ' + $c.Source + ' ' + $c.Chord + ' = ' + (ConvertTo-MdCell $c.Yours) + ' (' + $c.Reason + ')') }
+        }
         $o.Add('')
         $o.Add('Your bindings that differ from the 2048 defaults:')
         $o.Add('')
@@ -1939,6 +2071,7 @@ function Get-ImportPlan($B2) {
     Add-KeyboardWrites $plan
     Add-CommandBarWrites $plan
     Add-GroupWrites $plan
+    Add-MouseWrites $plan
     Add-UnmappedOptions $plan
     Add-MouseReport $plan
     # sort writes by category order, then name (deterministic output)
@@ -2094,7 +2227,9 @@ function Invoke-SelfTest {
         '<CommandButton Type="ScriptingCommand"><CommandID>104</CommandID></CommandButton></CommandBar2nd>' +
         '<CommandBarVertical IconSize="300"><CommandButton Type="File"><Path>C:\Windows</Path><FileAction>InPlace</FileAction></CommandButton></CommandBarVertical></CommandBar>' +
         '<Groups><Group Name="QT2048 selftest group"><Item Type="IDL">14001F50E04FD020EA3A6910A2D808002B30309D0000</Item><Item Type="IDL">0500AABB</Item></Group></Groups>' +
-        '<Events><Interactive><CommandButtonClick>020000000C00000001000000FFFFFFFF05000000FFFFFFFFFFFFFFFF63000000</CommandButtonClick></Interactive></Events></QTTabBar>'
+        '<Events><Interactive><CommandButtonClick>020000000C00000001000000FFFFFFFF05000000FFFFFFFFFFFFFFFF63000000</CommandButtonClick>' +
+        '<TabBarDoubleClick>05000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF</TabBarDoubleClick><ViewIconDoubleClick>FFFFFFFF0000000001000000FFFFFFFF10000000FFFFFFFFFFFFFFFFFFFFFFFF</ViewIconDoubleClick>' +
+        '<ViewBackgroundMiddleClick>09000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF</ViewBackgroundMiddleClick></Interactive></Events></QTTabBar>'
     $doc = New-Object System.Xml.XmlDocument
     $doc.XmlResolver = $null
     $doc.LoadXml($xmlText)
@@ -2133,6 +2268,16 @@ function Invoke-SelfTest {
     Check 'conflict: Ctrl+Shift+T displaces fork NewWindow' ($conf.Count -eq 1) "$($plan.KeyConflicts.Count) conflicts"
     Check 'button bar: 3 mapped, 2 lost' ($plan.Buttons.Mapped.Count -eq 3 -and $plan.Buttons.Lost.Count -eq 2) "$($plan.Buttons.Mapped.Count)/$($plan.Buttons.Lost.Count)"
     Check 'mouse: no user changes on defaults' ($plan.Mouse.UserChanges.Count -eq 0) "$($plan.Mouse.UserChanges.Count)"
+    $mexp = [ordered]@{
+        'Mouse.BarActions' = '[{"Key":32,"Value":17},{"Key":34,"Value":19},{"Key":64,"Value":17}]'
+        'Mouse.ItemActions' = '[{"Key":32,"Value":1006},{"Key":34,"Value":1007},{"Key":65,"Value":1007},{"Key":66,"Value":1006},{"Key":68,"Value":1012}]'
+        'Mouse.MarginActions' = '[{"Key":32,"Value":1032},{"Key":64,"Value":1001},{"Key":66,"Value":1028}]'
+    }
+    foreach ($k in $mexp.get_Keys()) {
+        Check "mapping $k" ($pv.ContainsKey($k) -and [string]$pv[$k] -eq $mexp[$k]) $(if ($pv.ContainsKey($k)) { [string]$pv[$k] } else { '(not planned)' })
+    }
+    Check 'no TabActions without tab events' (-not $pv.ContainsKey('Mouse.TabActions')) ''
+    Check 'mouse dictionary canonical form ignores order' ((ConvertTo-MouseDictCanonical '[{"Key":64,"Value":1},{"Key":32,"Value":2}]') -eq (ConvertTo-MouseDictCanonical '[{"Key":32,"Value":2},{"Key":64,"Value":1}]')) ''
     $unknown = @($plan.Writes | Where-Object { -not ($script:Schema.ContainsKey($_.Category) -and $script:Schema[$_.Category].ContainsKey($_.Name)) })
     Check 'all planned names exist in the fork schema' ($unknown.Count -eq 0) (($unknown | ForEach-Object { $_.Key }) -join ', ')
     $threw = $false
@@ -2217,6 +2362,14 @@ function Invoke-SelfTest {
             Check 'BindAction order matches Config.cs' (($names -join ',') -eq ($script:ForkActions -join ',')) "$($names.Count) members"
         }
         else { Check 'BindAction order matches Config.cs' $false 'enum not found' }
+        $m = [regex]::Match($src, 'Nothing\s*=\s*QTUtility\.FIRST_MOUSE_ONLY_ACTION\s*,(?<b>.*?)KEYBOARD_ACTION_COUNT2', 'Singleline')
+        if ($m.Success) {
+            $body = [regex]::Replace($m.Groups['b'].Value, '/\*.*?\*/', '', 'Singleline')
+            $body = [regex]::Replace($body, '//[^\r\n]*', '')
+            $names = @('Nothing') + @($body -split ',' | ForEach-Object { ($_ -replace '=.*$', '').Trim() } | Where-Object { $_ })
+            Check 'mouse BindAction order matches Config.cs' (($names -join ',') -eq ($script:ForkMouseActions -join ',')) "$($names -join ',')"
+        }
+        else { Check 'mouse BindAction order matches Config.cs' $false 'mouse section not found' }
         $m = [regex]::Match($src, 'new\s+Dictionary<BindAction,\s*Keys>\s*\{(?<b>.*?)\};', 'Singleline')
         if ($m.Success) {
             $keyVal = @{ Left = 37; Right = 39; Tab = 9; T = 84; W = 87; Z = 90; O = 79; Oemcomma = 188; OemPeriod = 190; G = 71; H = 72; U = 85; F = 70; N = 78; D = 68; L = 76; Control = $script:KCtrl; Shift = $script:KShift; Alt = $script:KAlt }

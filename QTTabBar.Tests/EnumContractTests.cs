@@ -29,6 +29,15 @@ namespace QTTabBar.Tests {
         [TestMethod] public void BindAction_TearOffCurrent_Is19()      => Assert.AreEqual(19, (int)BindAction.TearOffCurrent);
         [TestMethod] public void BindAction_LockCurrent_Is20()         => Assert.AreEqual(20, (int)BindAction.LockCurrent);
 
+        // Mouse-only actions are stored in Config\Mouse (and written by Import-QTTabBar2048Settings).
+        [TestMethod] public void BindAction_Nothing_Is1000()                => Assert.AreEqual(1000, (int)BindAction.Nothing);
+        [TestMethod] public void BindAction_ItemOpenInNewTab_Is1006()       => Assert.AreEqual(1006, (int)BindAction.ItemOpenInNewTab);
+        [TestMethod] public void BindAction_ItemProperties_Is1012()         => Assert.AreEqual(1012, (int)BindAction.ItemProperties);
+        [TestMethod] public void BindAction_CloseTab_Is1016()               => Assert.AreEqual(1016, (int)BindAction.CloseTab);
+        [TestMethod] public void BindAction_LockTab_Is1020()                => Assert.AreEqual(1020, (int)BindAction.LockTab);
+        [TestMethod] public void BindAction_ItemsOpenInNewTabNoSel_Is1029() => Assert.AreEqual(1029, (int)BindAction.ItemsOpenInNewTabNoSel);
+        [TestMethod] public void BindAction_SelectAll_Is1032()              => Assert.AreEqual(1032, (int)BindAction.SelectAll);
+
         [TestMethod]
         public void MouseChord_FlagsArePowersOfTwo() {
             Assert.AreEqual(0,   (int)MouseChord.None);

@@ -2169,6 +2169,9 @@ namespace QTTabBarLib {
                     break;
                 case BindAction.Paste:
                     break;
+                case BindAction.SelectAll:
+                    ShellBrowser.SelectAll();
+                    break;
                 case BindAction.Maximize:
                     break;
                 case BindAction.Minimize:
@@ -2209,7 +2212,11 @@ namespace QTTabBarLib {
                     break;
 
                 case BindAction.ItemCut:
-                case BindAction.ItemCopy:      
+                case BindAction.ItemCopy:
+                    if(item != null && item.Available && item.HasPath && !string.IsNullOrEmpty(item.Path) && !item.Path.StartsWith("::")) {
+                        ShellMethods.SetClipboardFileDropPaths(new List<string> { item.Path }, action == BindAction.ItemCut, ExplorerHandle);
+                    }
+                    break;
                 case BindAction.ItemDelete:
                     break;
 
@@ -2218,7 +2225,11 @@ namespace QTTabBarLib {
                     break;
 
                 case BindAction.CopyItemPath:
+                    if(item != null && item.Available && !string.IsNullOrEmpty(item.Path)) QTUtility2.SetStringClipboard(item.Path);
+                    break;
                 case BindAction.CopyItemName:
+                    if(item != null && item.Available && !string.IsNullOrEmpty(item.DisplayName)) QTUtility2.SetStringClipboard(item.DisplayName);
+                    break;
                 case BindAction.ChecksumItem:
                     break;
                 /***** add by qwop start ***/
@@ -5280,7 +5291,29 @@ namespace QTTabBarLib {
                 DoBindAction(action);
                 return true;
             }
+            // Double-click on a folder with a bound chord (e.g. Ctrl: new tab, as in 2048 Beta2).
+            // Files and unbound chords keep Explorer's own double-click.
+            if(chord != MouseChord.Double && Config.Mouse.ItemActions.TryGetValue(chord, out action)) {
+                int index = listView.HitTest(pt, false);
+                if(index <= -1) return false;
+                using(IDLWrapper wrapper = ShellBrowser.GetItem(index)) {
+                    if(!IsFolderOrLinkToFolder(wrapper)) return false;
+                    QTUtility2.log("ListView_DoubleClick item " + action);
+                    DoBindAction(action, false, null, wrapper);
+                    return true;
+                }
+            }
             return false;
+        }
+
+        private static bool IsFolderOrLinkToFolder(IDLWrapper wrapper) {
+            if(wrapper == null || !wrapper.Available) return false;
+            if(wrapper.IsLink) {
+                using(IDLWrapper target = wrapper.ResolveTargetIfLink()) {
+                    return target != null && target.Available && target.IsFolder;
+                }
+            }
+            return wrapper.IsFolder && !wrapper.IsFileSystemFile;
         }
 
         private void ListView_EndLabelEdit(LVITEM item) {

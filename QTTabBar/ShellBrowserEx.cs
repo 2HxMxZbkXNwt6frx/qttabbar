@@ -347,6 +347,21 @@ namespace QTTabBarLib {
                                             SVSIF.FOCUSED);
         }
 
+        // Selects every item, as the view's own Select all command does.
+        public void SelectAll() {
+            IShellView shellView = folderView as IShellView;
+            if(shellView == null) return;
+            try {
+                IntPtr hwnd;
+                shellView.GetWindow(out hwnd);
+                const int FCIDM_SHVIEW_SELECTALL = 0x7021;
+                if(hwnd != IntPtr.Zero) PInvoke.SendMessage(hwnd, WM.COMMAND, (IntPtr)FCIDM_SHVIEW_SELECTALL, IntPtr.Zero);
+            }
+            catch(COMException e) {
+                QTUtility2.MakeErrorLog(e, "ShellBrowserEx SelectAll");
+            }
+        }
+
         internal void SetStatusText(string status) {
             if(shellBrowser != null) shellBrowser.SetStatusTextSB(status);
         }
