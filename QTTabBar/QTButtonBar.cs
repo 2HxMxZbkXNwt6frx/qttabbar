@@ -1023,11 +1023,12 @@ namespace QTTabBarLib {
                 InstanceManager.RegisterButtonBar(this);
                 dropTargetWrapper = new DropTargetWrapper(this);
                 QTTabBarClass tabBar = InstanceManager.GetThreadTabBar();
-                // add by indiff dark mode
-                QTUtility.InNightMode = QTUtility.getNightMode();
+                // add by indiff dark mode. Refresh every window only when this changed something
+                // (see QTTabBarClass.ApplyNightMode): this runs for every window that opens.
                 QTUtility2.log("OnExplorerAttached SwitchNighMode");
-                Config.Skin.SwitchNighMode(QTUtility.InNightMode);
-                ConfigManager.UpdateConfig(true);
+                if(QTTabBarClass.ApplyNightMode()) {
+                    ConfigManager.UpdateConfig(true);
+                }
                 PInvoke.SetRedraw(ExplorerHandle, true);
                 PInvoke.RedrawWindow(ExplorerHandle, IntPtr.Zero, IntPtr.Zero, 0x289);
                 // If the TabBar and its PluginManager already exist, that means

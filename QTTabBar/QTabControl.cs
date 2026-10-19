@@ -52,6 +52,7 @@ namespace QTTabBarLib {
         private bool fNowMouseIsOnIcon;
         private bool fNowShowCloseBtnAlt;
         private bool fNowTabContextMenuStripShowing;
+        private Font fntOwn;   // this control's copy of Config.Skin.TabTextFont (see SetFont)
         private Font fnt_Underline;
         private Font fntBold;
         private Font fntBold_Underline;
@@ -561,6 +562,10 @@ namespace QTTabBarLib {
             if(fntDriveLetter != null) {
                 fntDriveLetter.Dispose();
                 fntDriveLetter = null;
+            }
+            if(fntOwn != null) {
+                fntOwn.Dispose();
+                fntOwn = null;
             }
             foreach(QTabItem base2 in tabPages) {
                 if(base2 != null) {
@@ -1741,75 +1746,47 @@ namespace QTTabBarLib {
             fNowTabContextMenuStripShowing = fShow;
         }
 
+        // fnt is Config.Skin.TabTextFont: one Font object shared by every Explorer window, each on
+        // its own thread. GDI+ objects aren't thread-safe, so this control works on a private copy
+        // and every font it disposes is one it created. (The old code left a variant pointing at the
+        // shared font when building it failed and disposed it on the next refresh; with many windows
+        // refreshing at once that corrupted the native heap and crashed Explorer.)
         private void SetFont(Font fnt) {
-            Font = fnt;
-            if(fntBold != null) {
-                fntBold.Dispose();
+            Font[] old = { fntOwn, fntBold, fnt_Underline, fntBold_Underline, fntSubText, fntDriveLetter };
+            fntOwn = CloneFont(fnt) ?? CloneFont(Control.DefaultFont);
+            Font = fntOwn;
+            fntBold = DeriveFont(fntOwn, () => new Font(fntOwn, FontStyle.Bold), "fntBold");
+            fnt_Underline = DeriveFont(fntOwn, () => new Font(fntOwn, FontStyle.Underline), "fnt_Underline");
+            fntBold_Underline = DeriveFont(fntOwn, () => new Font(fntBold, FontStyle.Underline), "fntBold_Underline");
+            float sizeInPoints = fntOwn.SizeInPoints;
+            fntSubText = DeriveFont(fntOwn, () => new Font(fntOwn.FontFamily, (sizeInPoints > 8.25f) ? (sizeInPoints - 0.75f) : sizeInPoints), "fntSubText");
+            fntDriveLetter = DeriveFont(fntOwn, () => new Font(fntOwn.FontFamily, 8.25f), "fntDriveLetter");
+            QTabItem.TabFont = fntOwn;
+            foreach(Font f in old) {
+                if(f != null) f.Dispose();
             }
-            fntBold = Font;
-            try
-            {
-                fntBold = new Font(Font, FontStyle.Bold);
-            }
-            catch (Exception e)
-            {
-                QTUtility2.MakeErrorLog(e, "SetFont fntBold");
+        }
 
+        private static Font CloneFont(Font fnt) {
+            try {
+                return fnt == null ? null : (Font)fnt.Clone();
             }
-            if(fnt_Underline != null) {
-                fnt_Underline.Dispose();
+            catch(Exception e) {
+                QTUtility2.MakeErrorLog(e, "SetFont clone");
+                return null;
             }
-            fnt_Underline = Font;
-            try
-            {
-                fnt_Underline = new Font(Font, FontStyle.Underline);
-            }
-            catch (Exception e)
-            {
-                QTUtility2.MakeErrorLog(e, "SetFont fnt_Underline");
+        }
 
+        // Builds a font variant; on failure returns a separate copy of the base font, never the base
+        // object itself, so it is always safe to dispose.
+        private static Font DeriveFont(Font baseFont, Func<Font> create, string name) {
+            try {
+                return create();
             }
-            if(fntBold_Underline != null) {
-                fntBold_Underline.Dispose();
+            catch(Exception e) {
+                QTUtility2.MakeErrorLog(e, "SetFont " + name);
+                return (Font)baseFont.Clone();
             }
-            fntBold_Underline = fntBold;
-            try
-            {
-                fntBold_Underline = new Font(fntBold, FontStyle.Underline);
-            }
-            catch  (Exception e)
-            {
-                QTUtility2.MakeErrorLog(e, "SetFont fntBold_Underline");
-
-            }
-            if(fntSubText != null) {
-                fntSubText.Dispose();
-            }
-            float sizeInPoints = Font.SizeInPoints;
-            fntSubText = Font;
-            try
-            {
-                fntSubText = new Font(Font.FontFamily, (sizeInPoints > 8.25f) ? (sizeInPoints - 0.75f) : sizeInPoints);
-            }
-            catch (Exception e)
-            {
-                QTUtility2.MakeErrorLog(e, "SetFont sizeInPoints");
-
-            }
-            if(fntDriveLetter != null) {
-                fntDriveLetter.Dispose();
-            }
-            fntDriveLetter = Font;
-            try
-            {
-                fntDriveLetter = new Font(Font.FontFamily, 8.25f);
-            }
-            catch (Exception e)
-            {
-                QTUtility2.MakeErrorLog(e, "SetFont 8.25f");
-
-            }
-            QTabItem.TabFont = Font;
         }
 
         public void SetPseudoHotIndex(int index) {

@@ -666,10 +666,12 @@ namespace QTTabBarLib {
                             }
                             break;
                         case WM.SYSCOLORCHANGE:
-                            QTUtility.InNightMode = QTUtility.getNightMode();
-                            QTUtility2.log("SYSCOLORCHANGE SwitchNighMode");
-                            Config.Skin.SwitchNighMode(QTUtility.InNightMode ); // Skip color switching if auto color-switching is disabled
-                            ConfigManager.UpdateConfig(true);
+                            // Every Explorer window gets this; only refresh all windows when
+                            // something changed (see ApplyNightMode).
+                            if(ApplyNightMode()) {
+                                QTUtility2.log("SYSCOLORCHANGE SwitchNighMode");
+                                ConfigManager.UpdateConfig(true);
+                            }
                             this.tabControl1.InitializeColors();
                             PInvoke.SetRedraw(ExplorerHandle, true);
                             PInvoke.RedrawWindow(ExplorerHandle, IntPtr.Zero, IntPtr.Zero, 0x289);
@@ -1798,6 +1800,22 @@ namespace QTTabBarLib {
         // after OnExplorerAttached).
         private bool IsTabBarDocked {
             get { return ReBarHandle != IntPtr.Zero; }
+        }
+
+        private static readonly object nightModeLock = new object();
+
+        // Re-reads light/dark mode and applies the colour preset (SwitchNighMode skips that when
+        // auto colour switching is off). Returns true only when the mode or a colour changed, which
+        // is when every window needs a refresh: each Explorer window calls this (when it opens and on
+        // WM_SYSCOLORCHANGE), and broadcasting a refresh from all of them meant N windows refreshing
+        // N times at once, which crashed Explorer with many windows open.
+        internal static bool ApplyNightMode() {
+            lock(nightModeLock) {
+                bool night = QTUtility.getNightMode();
+                bool modeChanged = night != QTUtility.InNightMode;
+                QTUtility.InNightMode = night;
+                return Config.Skin.SwitchNighModeChanged(night) || modeChanged;
+            }
         }
 
         private bool DoBindAction(BindAction action, bool fRepeat = false, QTabItem tab = null, IDLWrapper item = null) {

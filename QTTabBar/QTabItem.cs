@@ -32,9 +32,12 @@ namespace QTTabBarLib {
         // Static stuff
         internal const string SEPARATOR_COMMENT = ": ";
         internal const string SEPARATOR_SUBTEXT = "@ ";
-        private static StringFormat sfMeasure;
-        private static Font font;
-        private static Font fontSubText;
+        // Per thread: each Explorer window has its own UI thread and QTabControl, and each control
+        // replaces (and disposes) these when its font changes. Shared across threads, one window
+        // disposed them while another was measuring with them.
+        [ThreadStatic] private static StringFormat sfMeasure;
+        [ThreadStatic] private static Font font;
+        [ThreadStatic] private static Font fontSubText;
         private static RectangleF rctMeasure = new RectangleF(0f, 0f, 512f, 50f);
         
         // ±êÇ©×ÖÌå

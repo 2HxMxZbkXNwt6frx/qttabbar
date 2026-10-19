@@ -666,6 +666,20 @@ namespace QTTabBarLib {
                 DrawVerticalExplorerBarBgColor = false; //
             }
 
+            // SwitchNighMode, reporting whether any colour actually changed, so callers only refresh
+            // every window when something did.
+            internal bool SwitchNighModeChanged(bool isNighMode) {
+                string before = ColorSignature();
+                SwitchNighMode(isNighMode);
+                return ColorSignature() != before;
+            }
+
+            private string ColorSignature() {
+                return string.Join(",", ToolBarTextColor.ToArgb(), TabTextActiveColor.ToArgb(), TabTextInactiveColor.ToArgb(),
+                        TabTextHotColor.ToArgb(), TabShadActiveColor.ToArgb(), TabShadInactiveColor.ToArgb(),
+                        TabShadHotColor.ToArgb(), RebarColor.ToArgb(), UseRebarBGColor);
+            }
+
 			// Switch colors when toggling dark mode
             internal void SwitchNighMode(bool isNighMode)
             {
