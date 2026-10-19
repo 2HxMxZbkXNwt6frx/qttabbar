@@ -906,6 +906,10 @@ namespace QTTabBarLib {
                 {
                     using (Bitmap bitmap = new Bitmap(path))
                     {
+                        if (TryLoadLegacyStrip(bitmap, out bmpLarge, out bmpSmall))
+                        {
+                            return true;
+                        }
                         // if ((bitmap.Width >= 0x1b0) && (bitmap.Height >= 40))
                         /* if ((bitmap.Width >= 0x1b0) && (bitmap.Height >= 0x18))
                          {
@@ -929,6 +933,47 @@ namespace QTTabBarLib {
                 }
             }
             return false;
+        }
+
+        // Image strips made for QTTabBar 1.x and 2048 Beta2: 40 px high, 432/480/528 px wide (18/20/22
+        // icons), 24 px icons on top and the same icons at 16 px below (y = 24). Cell n is 2048's
+        // built-in command n + 1; 1..18 are this fork's buttons 1..18, 2048's Option (19) is
+        // BII_OPTION, and 2048 has no image for window opacity and the filter box. Rebuilt in this
+        // fork's order; cells the file doesn't have come from the default strip.
+        private static bool TryLoadLegacyStrip(Bitmap bitmap, out Bitmap bmpLarge, out Bitmap bmpSmall) {
+            bmpLarge = bmpSmall = null;
+            if(bitmap.Height != 40 || bitmap.Width < 432) return false;
+            int legacyCells = bitmap.Width / 24;
+            Bitmap defLarge = QTUtility.InNightMode ? Resources_Image.ButtonStripWhite24 : Resources_Image.ButtonStrip24;
+            Bitmap defSmall = QTUtility.InNightMode ? Resources_Image.ButtonStripWhite16 : Resources_Image.ButtonStrip16;
+            try {
+                int cells = defLarge.Width / 24;
+                Bitmap large = new Bitmap(cells * 24, 24, PixelFormat.Format32bppArgb);
+                Bitmap small = new Bitmap(cells * 16, 16, PixelFormat.Format32bppArgb);
+                using(Graphics gl = Graphics.FromImage(large))
+                using(Graphics gs = Graphics.FromImage(small)) {
+                    gl.CompositingMode = gs.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                    for(int c = 0; c < cells; c++) {
+                        int bii = c + 1;
+                        int legacy = bii <= BII_SHELLSEARCH ? c : bii == BII_OPTION ? 18 : -1;
+                        if(legacy >= 0 && legacy < legacyCells) {
+                            gl.DrawImage(bitmap, new Rectangle(c * 24, 0, 24, 24), new Rectangle(legacy * 24, 0, 24, 24), GraphicsUnit.Pixel);
+                            gs.DrawImage(bitmap, new Rectangle(c * 16, 0, 16, 16), new Rectangle(legacy * 16, 24, 16, 16), GraphicsUnit.Pixel);
+                        }
+                        else {
+                            gl.DrawImage(defLarge, new Rectangle(c * 24, 0, 24, 24), new Rectangle(c * 24, 0, 24, 24), GraphicsUnit.Pixel);
+                            gs.DrawImage(defSmall, new Rectangle(c * 16, 0, 16, 16), new Rectangle(c * 16, 0, 16, 16), GraphicsUnit.Pixel);
+                        }
+                    }
+                }
+                bmpLarge = large;
+                bmpSmall = small;
+                return true;
+            }
+            finally {
+                defLarge.Dispose();
+                defSmall.Dispose();
+            }
         }
 
         internal static Image ResizeBitMap(Bitmap original, int desiredWidth, int desiredHeight)

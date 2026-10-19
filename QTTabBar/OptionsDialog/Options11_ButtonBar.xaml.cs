@@ -42,38 +42,10 @@ namespace QTTabBarLib {
         }
 
 
+        // Same formats as the button bar itself (including QTTabBar 1.x / 2048 Beta2 strips).
         internal static bool LoadExternalImage(string path, out Bitmap bmpLarge, out Bitmap bmpSmall)
         {
-            bmpLarge = (bmpSmall = null);
-            if (File.Exists(path))
-            {
-                try
-                {
-                    using (Bitmap bitmap = new Bitmap(path))
-                    {
-                        // if ((bitmap.Width >= 0x1b0) && (bitmap.Height >= 40))
-                        /* if ((bitmap.Width >= 0x1b0) && (bitmap.Height >= 0x18))
-                         {
-                             bmpLarge = bitmap.Clone(new Rectangle(0, 0, 0x1b0, 0x18), PixelFormat.Format32bppArgb);
-                             bmpSmall = bitmap.Clone(new Rectangle(0, 0x18, 0x120, 0x10), PixelFormat.Format32bppArgb);
-                             return true;
-                         }*/
-
-                        if ((bitmap.Width >= 504) && (bitmap.Height >= 24))
-                        {
-                            bmpLarge = bitmap.Clone(new Rectangle(0, 0, 504, 24), PixelFormat.Format32bppArgb);
-                            // bmpSmall = bitmap.Clone(new Rectangle(0, 0x18, 0x120, 0x10), PixelFormat.Format32bppArgb);
-                            bmpSmall = (Bitmap)ResizeBitMap(bmpLarge, 336, 16);
-                            return true;
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    QTUtility2.MakeErrorLog(ex);
-                }
-            }
-            return false;
+            return QTButtonBar.LoadExternalImage(path, out bmpLarge, out bmpSmall);
         }
 
         internal static Image ResizeBitMap(Bitmap original, int desiredWidth, int desiredHeight)

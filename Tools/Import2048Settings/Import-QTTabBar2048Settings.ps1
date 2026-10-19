@@ -291,7 +291,7 @@ $script:ForkDefaults = @{
     'Skin.RebarStretchMode' = 'Tile'; 'Skin.RebarImageFile' = ''; 'Skin.RebarImageSeperateBars' = '0'; 'Skin.ActiveTabInBold' = '1'
     'Skin.SkinAutoColorChangeClose' = '0'; 'Skin.DrawHorizontalExplorerBarBgColor' = '0'; 'Skin.DrawVerticalExplorerBarBgColor' = '0'
     'BBar.ButtonIndexes' = '[3,4,5,6,7,17,11,12,14,15,13,21,9,19,10]'; 'BBar.LargeButtons' = '1'; 'BBar.LockDropDownButtons' = '1'
-    'BBar.ShowButtonLabels' = '1'
+    'BBar.ShowButtonLabels' = '1'; 'BBar.ImageStripPath' = ''
     'CmdBars.SecondBarItems' = ''; 'CmdBars.VerticalBarItems' = ''; 'CmdBars.SecondBarIconSize' = '32'; 'CmdBars.VerticalBarIconSize' = '48'
     'CmdBars.SecondBarShowLabels' = '0'; 'CmdBars.VerticalBarShowLabels' = '0'; 'CmdBars.VerticalBarVisible' = '0'
     'CmdBars.ClickActions' = '[0,12,1,-1,5,-1,-1,-1]'; 'CmdBars.MiddleClickActions' = '[15,-1,-1,-1,13,-1,-1,-1]'
@@ -1012,8 +1012,17 @@ function Test-SystemDarkMode {
 }
 
 function Add-ButtonBarWrites($Plan) {
+    # 2048 (CommandControl.MakeItemDisplayStyle): a button shows its label only when the bar allows
+    # labels (section = 0) AND the button's own LabelVisibility is set; otherwise icon only.
     $label = Get-Sec $Plan 'CommandBar_ShowTextLabel'
-    Add-Write $Plan 'BBar' 'ShowButtonLabels' ([int]($label -eq 0)) ("CommandBar_ShowTextLabel={0} (0 = labels shown)" -f $label)
+    if ($Plan.B2.Bars.Contains('CommandBar1st')) {
+        $withLabel = @($Plan.B2.Bars['CommandBar1st'].Buttons | Where-Object { $null -ne $_.Node -and (Get-B2Text $_.Node 'LabelVisibility') -eq 'true' }).Count
+        Add-Write $Plan 'BBar' 'ShowButtonLabels' ([int]($label -eq 0 -and $withLabel -gt 0)) ("CommandBar_ShowTextLabel={0}; {1} buttons with a label" -f $label, $withLabel) 'fork: one setting for the whole bar'
+    }
+    else {
+        Add-Write $Plan 'BBar' 'ShowButtonLabels' ([int]($label -eq 0)) ("CommandBar_ShowTextLabel={0} (0 = labels shown)" -f $label)
+    }
+    Add-ImageStripWrite $Plan
     $info = [pscustomobject]@{ Mapped = New-Object System.Collections.Generic.List[object]; Lost = New-Object System.Collections.Generic.List[object]; OtherBars = New-Object System.Collections.Generic.List[object]; IconSize = $null }
     $Plan.Buttons = $info
     if (-not $Plan.B2.Bars.Contains('CommandBar1st')) {
@@ -1051,6 +1060,48 @@ function Add-ButtonBarWrites($Plan) {
         $types = @($Plan.B2.Bars[$k].Buttons | Group-Object Type | Sort-Object Name | ForEach-Object { "$($_.Count) x $($_.Name)" })
         $info.OtherBars.Add([pscustomobject]@{ Bar = $k; Count = $Plan.B2.Bars[$k].Buttons.Count; Types = ($types -join ', ') })
     }
+}
+
+# Size of an image file (header only), $null when it can't be read.
+function Get-ImageSize([string]$Path) {
+    if ($null -eq $script:DrawingLoaded) {
+        try { Add-Type -AssemblyName System.Drawing; $script:DrawingLoaded = $true } catch { $script:DrawingLoaded = $false }
+    }
+    if (-not $script:DrawingLoaded) { return $null }
+    $fs = $null
+    try {
+        $fs = [IO.File]::Open($Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite)
+        $img = [System.Drawing.Image]::FromStream($fs, $false, $false)
+        try { return [pscustomobject]@{ Width = $img.Width; Height = $img.Height } } finally { $img.Dispose() }
+    }
+    catch { return $null }
+    finally { if ($null -ne $fs) { $fs.Dispose() } }
+}
+
+# <CommandBarImagePath> ("Image file for Basic commands") -> BBar.ImageStripPath. The fork reads
+# 2048's legacy strips (40 px high, 432..528 px wide) and its own (>= 504 x 24); 2048's single-row
+# strips (21/22 square cells of 32..256 px) are not supported.
+function Add-ImageStripWrite($Plan) {
+    $path = Get-Scalar $Plan 'CommandBarImagePath'
+    if ([string]::IsNullOrEmpty($path)) { return }
+    $full = [Environment]::ExpandEnvironmentVariables($path)
+    if (-not (Test-Path -LiteralPath $full -PathType Leaf)) {
+        $Plan.LostOptions.Add([pscustomobject]@{ Item = 'CommandBarImagePath'; Value = $path; Reason = 'file not found on this machine (copy it here and run the import again, or pick it in Options > Button bar)' })
+        return
+    }
+    $size = Get-ImageSize $full
+    if ($null -eq $size) {
+        $Plan.LostOptions.Add([pscustomobject]@{ Item = 'CommandBarImagePath'; Value = $path; Reason = 'not a readable image' })
+        return
+    }
+    $legacy = ($size.Height -eq 40 -and $size.Width -ge 432)
+    $fork = ($size.Width -ge 504 -and $size.Height -ge 24 -and -not $legacy)
+    if (-not ($legacy -or $fork)) {
+        $Plan.LostOptions.Add([pscustomobject]@{ Item = 'CommandBarImagePath'; Value = $path; Reason = (Format-Inv '{0}x{1} image: the fork reads 2048 legacy strips (40 px high, 432-528 px wide) and its own (504x24)' $size.Width $size.Height) })
+        return
+    }
+    $kind = $(if ($legacy) { (Format-Inv '2048 legacy strip {0}x{1}, {2} icons' $size.Width $size.Height ([int][Math]::Floor($size.Width / 24))) } else { (Format-Inv 'fork-format strip {0}x{1}' $size.Width $size.Height) })
+    Add-Write $Plan 'BBar' 'ImageStripPath' $path 'CommandBarImagePath' $kind
 }
 
 # ---------------------------------------------------------------------------------------------
@@ -2029,7 +2080,7 @@ function Invoke-SelfTest {
         '<Config>' + ($script:Data.B2DefaultConfigHex -join '') + '</Config><KeyboardShortcuts>' + ($script:Data.B2DefaultKeysHex -join '') + '</KeyboardShortcuts>' +
         '<RecentTabMax>128</RecentTabMax><TabFont></TabFont><TabFontSize></TabFontSize><TabFontStyle>0</TabFontStyle><TabFontStyleActive>1</TabFontStyleActive>' +
         '<TabImageSizingMargin>01020304</TabImageSizingMargin><TabWidth>80</TabWidth><TabHeight>18</TabHeight><TabWidthMax>90</TabWidthMax><TabWidthMin>16</TabWidthMin>' +
-        '<ColorActive>-1</ColorActive><ColorToolbarBackground>-16777216</ColorToolbarBackground><PreviewMaxWidth>5000</PreviewMaxWidth>' +
+        '<CommandBarImagePath>C:\qt2048-selftest\no-such-strip.png</CommandBarImagePath><ColorActive>-1</ColorActive><ColorToolbarBackground>-16777216</ColorToolbarBackground><PreviewMaxWidth>5000</PreviewMaxWidth>' +
         '</Config><CommandBar><CommandBar1st IconSize="16">' +
         '<CommandButton Type="BuiltIn"><CommandID>3</CommandID></CommandButton><CommandButton Type="BuiltIn"><CommandID>20</CommandID></CommandButton>' +
         '<CommandButton Type="ScriptingCommand"><CommandID>121</CommandID></CommandButton><CommandButton Type="BuiltIn"><CommandID>23</CommandID></CommandButton>' +
@@ -2058,7 +2109,7 @@ function Invoke-SelfTest {
         'Skin.TabTextActiveColor' = (New-ColorJson -1)
         'Skin.TabTextFont' = (New-FontJson 'Segoe UI' 9 0); 'Skin.TabSizeMargin' = (New-PaddingJson 1 2 3 4)
         'Keys.UseTabSwitcher' = 0; 'Misc.AutoUpdate' = 0; 'Misc.TabHistoryCount' = 30; 'Tips.PreviewMaxWidth' = 1920
-        'Tweaks.ToggleFullRowSelect' = 0; 'BBar.ShowButtonLabels' = 1; 'BBar.LargeButtons' = 0; 'BBar.ButtonIndexes' = '[3,20,21]'
+        'Tweaks.ToggleFullRowSelect' = 0; 'BBar.ShowButtonLabels' = 0; 'BBar.LargeButtons' = 0; 'BBar.ButtonIndexes' = '[3,20,21]'
         'Desktop.FirstItem' = 0; 'Desktop.SecondItem' = 1; 'Desktop.ThirdItem' = 3; 'Desktop.FourthItem' = 2; 'Desktop.IncludeGroup' = 1
     }
     foreach ($k in $exp.get_Keys()) {
@@ -2089,6 +2140,25 @@ function Invoke-SelfTest {
     Check 'unknown setting names are refused' $threw ''
     $kindBad = @($plan.Writes | Where-Object { ($_.Kind -eq 'DWord') -ne ($_.Type -eq 'bool' -or $_.Type -eq 'int') })
     Check 'registry kinds follow the schema types' ($kindBad.Count -eq 0) (($kindBad | ForEach-Object { $_.Key }) -join ', ')
+
+    # Button image strip: a missing file is reported, not written; strip sizes the fork reads.
+    Check 'missing CommandBarImagePath is not planned' (-not $pv.ContainsKey('BBar.ImageStripPath') -and @($plan.LostOptions | Where-Object { $_.Item -eq 'CommandBarImagePath' }).Count -eq 1) ''
+    $tmpDir = Join-Path ([IO.Path]::GetTempPath()) ('qt2048-selftest-' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $tmpDir | Out-Null
+    try {
+        Add-Type -AssemblyName System.Drawing
+        $stripResults = @()
+        foreach ($sz in @(@(528, 40, $true), @(504, 24, $true), @(352, 16, $false))) {
+            $p = Join-Path $tmpDir ("strip{0}x{1}.png" -f $sz[0], $sz[1])
+            $bmp = New-Object System.Drawing.Bitmap $sz[0], $sz[1]
+            try { $bmp.Save($p, [System.Drawing.Imaging.ImageFormat]::Png) } finally { $bmp.Dispose() }
+            $tp = New-Plan ([pscustomobject]@{ Scalars = [ordered]@{ CommandBarImagePath = $p } })
+            Add-ImageStripWrite $tp
+            $stripResults += (@($tp.Writes | Where-Object { $_.Key -eq 'BBar.ImageStripPath' }).Count -eq 1) -eq $sz[2]
+        }
+        Check 'strip sizes: 528x40 and 504x24 imported, 352x16 refused' (@($stripResults | Where-Object { -not $_ }).Count -eq 0) ($stripResults -join ',')
+    }
+    finally { Remove-Item -LiteralPath $tmpDir -Recurse -Force -ErrorAction SilentlyContinue }
 
     # Second / vertical command bars, click events, groups.
     $pcName = '::{20D04FE0-3AEA-1069-A2D8-08002B30309D}'
