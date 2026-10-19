@@ -16,6 +16,7 @@
 //    along with QTTabBar.  If not, see <http://www.gnu.org/licenses/>.
 
 using System;
+using System.Linq;
 using System.Runtime.Serialization;
 
 namespace QTTabBarLib {
@@ -29,6 +30,8 @@ namespace QTTabBarLib {
         // One or more tab groups (Groups), opened like the Groups button does.
         Group = 1,
         Separator = 2,
+        // A button that only opens a menu of its Children (2048 Beta2's "virtual folder").
+        Menu = 3,
     }
 
     // File items: how a folder target opens, overriding the click table (Config.CmdBars
@@ -87,9 +90,16 @@ namespace QTTabBarLib {
         // "%SystemRoot%\system32\shell32.dll,133") or an image / .ico file. Empty: the target's icon.
         [DataMember] public string Icon { get; set; }
 
+        // Child items (2048's "Child Items"): the menu of a Menu button, or what the arrow of a
+        // File / Group button lists instead of the folder contents / group folders.
+        [DataMember] public CommandBarItem[] Children { get; set; }
+
+        public bool HasChildren { get { return Children != null && Children.Length > 0; } }
+
         public CommandBarItem Clone() {
             CommandBarItem item = (CommandBarItem)MemberwiseClone();
             if(Groups != null) item.Groups = (string[])Groups.Clone();
+            if(Children != null) item.Children = Children.Where(c => c != null).Select(c => c.Clone()).ToArray();
             return item;
         }
     }

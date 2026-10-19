@@ -242,6 +242,7 @@ namespace QTTabBarLib {
         private List<string> draggedPaths;
         private int dropInsertIndex = -1;            // where dropped files become buttons
         private CommandBarItem dropTargetItem;       // or the button whose target takes the drop
+        private int dropMenuIndex = -1;              // or the Menu button that gets them as child items
 
         private static List<string> PathsFromHDrop(IntPtr hDrop) {
             List<string> paths = new List<string>();
@@ -272,6 +273,7 @@ namespace QTTabBarLib {
             draggedPaths = null;
             dropTargetItem = null;
             dropInsertIndex = -1;
+            dropMenuIndex = -1;
         }
 
         // 0: give the drop to the button's target (the shell copies / moves into a folder, opens the
@@ -289,7 +291,7 @@ namespace QTTabBarLib {
                     }
                     return -1;
                 }
-                return dropInsertIndex >= 0 ? 1 : -1;
+                return dropInsertIndex >= 0 || dropMenuIndex >= 0 ? 1 : -1;
             }
             finally {
                 draggedPaths = null;
@@ -302,10 +304,19 @@ namespace QTTabBarLib {
         private DragDropEffects EffectAt(Point screen, int keyState) {
             dropTargetItem = null;
             dropInsertIndex = -1;
+            dropMenuIndex = -1;
             if(draggedPaths == null || draggedPaths.Count == 0) return DragDropEffects.None;
             Point client = toolStrip.PointToClient(screen);
             ToolStripItem at = toolStrip.GetItemAt(client);
             CommandBarItem item = at == null ? null : ItemOf(at);
+            if(item != null && item.Type == CommandBarItemType.Menu) {
+                Rectangle mb = at.Bounds;
+                float mpos = IsVerticalBar ? (client.Y - mb.Top) / (float)Math.Max(1, mb.Height) : (client.X - mb.Left) / (float)Math.Max(1, mb.Width);
+                if(mpos > 0.2f && mpos < 0.8f) {
+                    dropMenuIndex = (int)at.Tag;
+                    return DragDropEffects.Link;
+                }
+            }
             if(item != null && item.Type == CommandBarItemType.File) {
                 Rectangle b = at.Bounds;
                 float pos = IsVerticalBar ? (client.Y - b.Top) / (float)Math.Max(1, b.Height) : (client.X - b.Left) / (float)Math.Max(1, b.Width);
@@ -347,7 +358,9 @@ namespace QTTabBarLib {
 
         private void AddDroppedFiles(IntPtr hDrop) {
             int index = dropInsertIndex;
+            int menuIndex = dropMenuIndex;
             dropInsertIndex = -1;
+            dropMenuIndex = -1;
             List<string> paths;
             try {
                 paths = PathsFromHDrop(hDrop);
@@ -357,6 +370,14 @@ namespace QTTabBarLib {
                 return;
             }
             if(paths.Count == 0) return;
+            if(menuIndex >= 0) {
+                UpdateChildList(new List<int> { menuIndex }, list => {
+                    foreach(string path in paths) {
+                        list.Add(new CommandBarItem { Type = CommandBarItemType.File, Split = Directory.Exists(path), Path = path });
+                    }
+                });
+                return;
+            }
             Save(() => {
                 List<CommandBarItem> list = (Items ?? new CommandBarItem[0]).ToList();
                 int at = index < 0 ? list.Count : Math.Min(index, list.Count);
@@ -543,11 +564,20 @@ namespace QTTabBarLib {
                 return new ToolStripSeparator();
             }
             string text = DisplayText(item);
-            Image image = CommandBarIcons.ForIconSpec(item.Icon, IconSize) ?? (item.Type == CommandBarItemType.Group
-                    ? GroupImage(item)
-                    : CommandBarIcons.ForPath(item.Path, IconSize));
+            Image image = ItemImage(item, IconSize);
             ToolStripItem button;
-            if(item.Split) {
+            if(item.Type == CommandBarItemType.Menu) {
+                // Opens its child items, on the button or the arrow.
+                ToolStripDropDownButton menuButton = new ToolStripDropDownButton(text, image);
+                ToolStripDropDown placeholder = new ToolStripDropDown();
+                placeholder.Opening += (sender, e) => {
+                    e.Cancel = true;
+                    if(!reordering && !suppressClick) ShowChildrenMenu(menuButton);
+                };
+                menuButton.DropDown = placeholder;
+                button = menuButton;
+            }
+            else if(item.Split) {
                 ToolStripSplitButton split = new ToolStripSplitButton(text, image);
                 // The arrow opens a menu built on demand (folder contents or the group's items);
                 // the empty placeholder drop-down is never shown.
@@ -578,19 +608,32 @@ namespace QTTabBarLib {
             return button;
         }
 
+        private const string MenuIcon = @"%SystemRoot%\system32\shell32.dll,3";   // a closed folder
+
+        private Image ItemImage(CommandBarItem item, int size) {
+            Image image = CommandBarIcons.ForIconSpec(item.Icon, size);
+            if(image != null) return image;
+            switch(item.Type) {
+                case CommandBarItemType.Group: return GroupImage(item, size);
+                case CommandBarItemType.Menu: return CommandBarIcons.ForIconSpec(MenuIcon, size);
+                default: return CommandBarIcons.ForPath(item.Path, size);
+            }
+        }
+
         // As 2048: the icon of the first folder of the first group that has one.
-        private Image GroupImage(CommandBarItem item) {
+        private Image GroupImage(CommandBarItem item, int size) {
             foreach(string name in item.Groups ?? new string[0]) {
                 Group group = GroupsManager.GetGroup(name);
                 if(group == null || group.Paths.Count == 0) continue;
-                Image image = CommandBarIcons.ForPath(group.Paths[0], IconSize);
+                Image image = CommandBarIcons.ForPath(group.Paths[0], size);
                 if(image != null) return image;
             }
-            return CommandBarIcons.ForGroup(IconSize, TextColor.GetBrightness() > 0.5f);
+            return CommandBarIcons.ForGroup(size, TextColor.GetBrightness() > 0.5f);
         }
 
         private static string DisplayText(CommandBarItem item) {
             if(!string.IsNullOrEmpty(item.Text)) return item.Text;
+            if(item.Type == CommandBarItemType.Menu) return Text_Menu;
             if(item.Type == CommandBarItemType.Group) {
                 return item.Groups == null ? "" : string.Join(", ", item.Groups);
             }
@@ -605,6 +648,9 @@ namespace QTTabBarLib {
         }
 
         private static string ToolTip(CommandBarItem item, string text) {
+            if(item.Type == CommandBarItemType.Menu) {
+                return text + "\r\n" + string.Format(Text_MenuTip, item.HasChildren ? item.Children.Length : 0);
+            }
             if(item.Type == CommandBarItemType.Group) {
                 string groups = Text_GroupTip + string.Join(", ", item.Groups ?? new string[0]);
                 return text == string.Join(", ", item.Groups ?? new string[0]) ? groups : text + "\r\n" + groups;
@@ -650,7 +696,151 @@ namespace QTTabBarLib {
                 BeginInvoke(new MethodInvoker(() => EditItem(index)));
                 return;
             }
+            if(item.Type == CommandBarItemType.Menu) {
+                if(!middle) ShowChildrenMenu(button);
+                return;
+            }
             if(action != ActNone) RunItem(item, action);
+        }
+
+        // ---------------------------------------------------------------- child items
+
+        // The menu of a button's child items, under (or beside) the button. A right-click on an entry
+        // offers Edit / Move / Remove; files dropped on a Menu button are added to it.
+        private void ShowChildrenMenu(ToolStripItem button) {
+            int index = button.Tag is int ? (int)button.Tag : -1;
+            CommandBarItem item = ItemAt(index);
+            if(item == null) return;
+            Rectangle bounds = button.Bounds;
+            Point pnt = IsVerticalBar
+                    ? toolStrip.PointToScreen(new Point(bounds.Right, bounds.Top))
+                    : toolStrip.PointToScreen(new Point(bounds.Left, bounds.Bottom));
+            ContextMenuStripEx menu = new ContextMenuStripEx(null, false);
+            menu.ImageScalingSize = new Size(16, 16);
+            AddChildEntries(menu.Items, item, new List<int> { index }, menu);
+            if(menu.Items.Count == 0) menu.Items.Add(new ToolStripMenuItem(Text_MenuEmpty) { Enabled = false });
+            menu.Closed += (sender, e) => BeginInvoke(new MethodInvoker(() => DisposeMenu(menu.Items, menu)));
+            menu.Show(pnt);
+        }
+
+        private void AddChildEntries(ToolStripItemCollection target, CommandBarItem parent, List<int> path, ContextMenuStripEx root) {
+            CommandBarItem[] children = parent.Children ?? new CommandBarItem[0];
+            for(int i = 0; i < children.Length; i++) {
+                CommandBarItem child = children[i];
+                if(child == null) continue;
+                List<int> childPath = new List<int>(path) { i };
+                if(child.Type == CommandBarItemType.Separator) {
+                    target.Add(new ToolStripSeparator());
+                    continue;
+                }
+                string text = DisplayText(child);
+                ToolStripMenuItem entry = new ToolStripMenuItem(text, ItemImage(child, 16)) { ToolTipText = ToolTip(child, text) };
+                bool submenu = child.HasChildren || child.Type == CommandBarItemType.Menu;
+                if(submenu) {
+                    AddChildEntries(entry.DropDownItems, child, childPath, root);
+                    if(entry.DropDownItems.Count == 0) entry.DropDownItems.Add(new ToolStripMenuItem(Text_MenuEmpty) { Enabled = false });
+                }
+                else {
+                    entry.Click += (sender, e) => {
+                        int action = ClickAction(false, ModifierKeys);
+                        if(action == ActEdit) BeginInvoke(new MethodInvoker(() => EditChild(childPath)));
+                        else if(action != ActNone) RunItem(child, action);
+                    };
+                }
+                entry.MouseUp += (sender, e) => {
+                    if(e.Button == MouseButtons.Right) {
+                        root.Close();
+                        BeginInvoke(new MethodInvoker(() => ShowChildEditMenu(childPath)));
+                    }
+                    else if(e.Button == MouseButtons.Middle && !submenu) {
+                        root.Close();
+                        int action = ClickAction(true, ModifierKeys);
+                        if(action == ActEdit) BeginInvoke(new MethodInvoker(() => EditChild(childPath)));
+                        else if(action != ActNone) RunItem(child, action);
+                    }
+                };
+                target.Add(entry);
+            }
+        }
+
+        private static void DisposeMenu(ToolStripItemCollection items, ToolStripDropDown owner) {
+            foreach(ToolStripItem i in items.Cast<ToolStripItem>().ToArray()) {
+                ToolStripMenuItem mi = i as ToolStripMenuItem;
+                if(mi != null && mi.HasDropDownItems) DisposeMenu(mi.DropDownItems, null);
+                if(i.Image != null) i.Image.Dispose();
+            }
+            if(owner != null) owner.Dispose();
+        }
+
+        // path: [index on the bar, index in Children, index in its Children, ...]
+        private CommandBarItem ChildAt(List<int> path) {
+            CommandBarItem node = ItemAt(path[0]);
+            for(int i = 1; i < path.Count && node != null; i++) {
+                node = node.HasChildren && path[i] < node.Children.Length ? node.Children[path[i]] : null;
+            }
+            return node;
+        }
+
+        // Changes the child list of the item at parentPath (in a copy, saved and rebuilt).
+        private void UpdateChildList(List<int> parentPath, Action<List<CommandBarItem>> change) {
+            Save(() => {
+                CommandBarItem[] items = (CommandBarItem[])(Items ?? new CommandBarItem[0]).Clone();
+                int top = parentPath[0];
+                if(top < 0 || top >= items.Length) return;
+                CommandBarItem node = items[top] = items[top].Clone();   // deep: children are copies too
+                for(int i = 1; i < parentPath.Count; i++) {
+                    if(!node.HasChildren || parentPath[i] >= node.Children.Length) return;
+                    node = node.Children[parentPath[i]];
+                }
+                List<CommandBarItem> list = (node.Children ?? new CommandBarItem[0]).ToList();
+                change(list);
+                node.Children = list.ToArray();
+                Items = items;
+            });
+        }
+
+        private void ShowChildEditMenu(List<int> path) {
+            CommandBarItem child = ChildAt(path);
+            if(child == null) return;
+            List<int> parentPath = path.Take(path.Count - 1).ToList();
+            int index = path[path.Count - 1];
+            int count = ChildAt(parentPath) != null && ChildAt(parentPath).HasChildren ? ChildAt(parentPath).Children.Length : 0;
+            ContextMenuStripEx menu = new ContextMenuStripEx(null, false);
+            if(child.Type != CommandBarItemType.Separator) {
+                menu.Items.Add(Text_Edit, null, (s, a) => EditChild(path));
+            }
+            menu.Items.Add(Text_MoveUp, null, (s, a) => UpdateChildList(parentPath, list => {
+                if(index <= 0 || index >= list.Count) return;
+                CommandBarItem moved = list[index];
+                list.RemoveAt(index);
+                list.Insert(index - 1, moved);
+            })).Enabled = index > 0;
+            menu.Items.Add(Text_MoveDown, null, (s, a) => UpdateChildList(parentPath, list => {
+                if(index < 0 || index >= list.Count - 1) return;
+                CommandBarItem moved = list[index];
+                list.RemoveAt(index);
+                list.Insert(index + 1, moved);
+            })).Enabled = index < count - 1;
+            menu.Items.Add(Text_AddSeparator, null, (s, a) => UpdateChildList(parentPath, list =>
+                    list.Insert(Math.Min(index + 1, list.Count), new CommandBarItem { Type = CommandBarItemType.Separator })));
+            menu.Items.Add(Text_Remove, null, (s, a) => UpdateChildList(parentPath, list => {
+                if(index >= 0 && index < list.Count) list.RemoveAt(index);
+            }));
+            menu.Closed += (sender, e) => BeginInvoke(new MethodInvoker(menu.Dispose));
+            menu.Show(Control.MousePosition);
+        }
+
+        private void EditChild(List<int> path) {
+            CommandBarItem child = ChildAt(path);
+            if(child == null || child.Type == CommandBarItemType.Separator) return;
+            CommandBarItem edited = child.Clone();
+            using(CommandBarItemForm form = new CommandBarItemForm(edited)) {
+                if(form.ShowDialog(this) != DialogResult.OK) return;
+            }
+            int index = path[path.Count - 1];
+            UpdateChildList(path.Take(path.Count - 1).ToList(), list => {
+                if(index < list.Count) list[index] = edited;
+            });
         }
 
         // Folders open in QTTabBar as the action says; files and programs are started (only Edit,
@@ -658,6 +848,7 @@ namespace QTTabBarLib {
         private void RunItem(CommandBarItem item, int action) {
             QTTabBarClass tabBar = InstanceManager.GetThreadTabBar();
             try {
+                if(item.Type == CommandBarItemType.Menu || item.Type == CommandBarItemType.Separator) return;
                 if(item.Type == CommandBarItemType.Group) {
                     RunGroup(item, action, tabBar);
                     return;
@@ -783,6 +974,10 @@ namespace QTTabBarLib {
         private void ShowItemMenu(ToolStripSplitButton split) {
             CommandBarItem item = ItemOf(split);
             if(item == null) return;
+            if(item.HasChildren) {
+                ShowChildrenMenu(split);
+                return;
+            }
             Rectangle bounds = split.Bounds;
             Point pnt = IsVerticalBar
                     ? toolStrip.PointToScreen(new Point(bounds.Right, bounds.Top))
@@ -891,6 +1086,7 @@ namespace QTTabBarLib {
             addGroup.Enabled = addGroup.DropDownItems.Count > 0;
             barMenu.Items.Add(addGroup);
             barMenu.Items.Add(Text_AddSeparator, null, (s, a) => Insert(insertAt, new CommandBarItem { Type = CommandBarItemType.Separator }));
+            barMenu.Items.Add(Text_AddMenu, null, (s, a) => Insert(insertAt, new CommandBarItem { Type = CommandBarItemType.Menu, Text = Text_Menu }));
             barMenu.Items.Add(new ToolStripSeparator());
             ToolStripMenuItem labels = new ToolStripMenuItem(Text_ShowLabels) { Checked = ShowLabels };
             labels.Click += (s, a) => Save(() => ShowLabels = !ShowLabels);
@@ -1065,6 +1261,10 @@ namespace QTTabBarLib {
         private static string Text_AddFile { get { return Japanese ? "ファイル/プログラムを追加..." : "Add file or program..."; } }
         private static string Text_AddGroup { get { return Japanese ? "グループを追加" : "Add group"; } }
         private static string Text_AddSeparator { get { return Japanese ? "区切りを追加" : "Add separator"; } }
+        private static string Text_Menu { get { return Japanese ? "メニュー" : "Menu"; } }
+        private static string Text_MenuTip { get { return Japanese ? "{0} 個の項目 (ファイルやフォルダーをドロップで追加)" : "{0} items (drop files or folders here to add)"; } }
+        private static string Text_MenuEmpty { get { return Japanese ? "(空: ここへドロップで追加)" : "(empty: drop files here to add)"; } }
+        private static string Text_AddMenu { get { return Japanese ? "メニューボタンを追加" : "Add menu button"; } }
         private static string Text_ShowLabels { get { return Japanese ? "ラベルを表示" : "Show labels"; } }
         private static string Text_IconSize { get { return Japanese ? "アイコンサイズ" : "Icon size"; } }
     }

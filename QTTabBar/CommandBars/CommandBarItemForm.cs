@@ -39,6 +39,7 @@ namespace QTTabBarLib {
             this.item = item;
             bool ja = QTUtility.IsJapanese;
             bool group = item.Type == CommandBarItemType.Group;
+            bool menu = item.Type == CommandBarItemType.Menu;
             Text = ja ? "ボタンの編集" : "Edit button";
             FormBorderStyle = FormBorderStyle.FixedDialog;
             MaximizeBox = MinimizeBox = false;
@@ -72,7 +73,7 @@ namespace QTTabBarLib {
                 cmbAction.SelectedIndex = Math.Max(0, Math.Min((int)item.GroupAction, cmbAction.Items.Count - 1));
                 AddRow(table, ja ? "動作:" : "Action:", cmbAction, null);
             }
-            else {
+            else if(!menu) {
                 Button browse = new Button { Text = "...", Width = 32, AutoSize = false };
                 browse.Click += (s, e) => Browse();
                 AddRow(table, ja ? "パス:" : "Path:", txtPath, browse);
@@ -101,7 +102,7 @@ namespace QTTabBarLib {
                     : (ja ? "▼ でフォルダーの中身を表示" : "Show the folder's contents under the arrow");
             chkSplit.AutoSize = true;
             chkSplit.Checked = item.Split;
-            table.Controls.Add(chkSplit, 1, table.RowCount++);
+            if(!menu) table.Controls.Add(chkSplit, 1, table.RowCount++);
 
             FlowLayoutPanel buttons = new FlowLayoutPanel { FlowDirection = FlowDirection.RightToLeft, AutoSize = true, Dock = DockStyle.Fill };
             Button cancel = new Button { Text = ja ? "キャンセル" : "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true };
@@ -144,12 +145,12 @@ namespace QTTabBarLib {
         private void Apply() {
             item.Text = txtLabel.Text.Trim();
             item.Icon = txtIcon.Text.Trim().Length > 0 ? txtIcon.Text.Trim() : null;
-            item.Split = chkSplit.Checked;
+            if(item.Type != CommandBarItemType.Menu) item.Split = chkSplit.Checked;
             if(item.Type == CommandBarItemType.Group) {
                 item.Groups = lstGroups.CheckedItems.Cast<string>().ToArray();
                 item.GroupAction = (CommandBarGroupAction)Math.Max(0, cmbAction.SelectedIndex);
             }
-            else {
+            else if(item.Type == CommandBarItemType.File) {
                 item.Path = txtPath.Text.Trim();
                 item.Args = txtArgs.Text;
                 item.WorkingDir = txtDir.Text.Trim();

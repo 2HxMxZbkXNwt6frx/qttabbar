@@ -18,9 +18,9 @@
       - the first command bar (BBar\ButtonIndexes, LargeButtons, ShowButtonLabels)
       - the second and vertical command bars (CmdBars\SecondBarItems, VerticalBarItems, icon sizes,
         labels, VerticalBarVisible) and the command button click / middle-click events
-        (CmdBars\ClickActions, MiddleClickActions): folder, file/program and group buttons and
-        separators; 2048 basic/advanced (script) commands, child items and custom icons are listed
-        as not imported
+        (CmdBars\ClickActions, MiddleClickActions): folder, file/program and group buttons,
+        separators, child items, virtual folders (menu buttons) and custom icons; 2048 basic and
+        advanced (script) commands are listed as not imported
       - groups (HKCU\Software\QTTabBar\Groups): 2048 groups whose name the fork doesn't have yet are
         appended, their folder PIDLs resolved to paths on this machine; existing groups are kept
       - mouse bindings of tabs, the tab bar, folder icons and the view background (Mouse\TabActions,
@@ -594,17 +594,23 @@ function ConvertTo-Canonical([string]$Type, $Value) {
 function ConvertTo-CmdItemsCanonical([string]$Json) {
     try { $parsed = ConvertFrom-Json $Json } catch { return $Json }
     $items = @($parsed | ForEach-Object { $_ })
-    $out = foreach ($i in $items) {
-        $f = foreach ($n in 'Type', 'Split', 'Text', 'Path', 'Args', 'WorkingDir', 'Groups', 'FileAction', 'GroupAction', 'Verb', 'WindowSize', 'Icon') {
-            $v = $null
-            if ($null -ne $i.PSObject.Properties[$n]) { $v = $i.$n }
-            if ($v -is [array]) { $v = ($v -join '|') }
-            if ($null -eq $v -or [string]$v -eq '' -or [string]$v -eq '0' -or [string]$v -eq 'False') { $v = '' }
-            "$n=$v"
-        }
-        $f -join ';'
-    }
+    $out = foreach ($i in $items) { Get-CmdItemCanon $i }
     return (@($out) -join "`n")
+}
+
+function Get-CmdItemCanon($Item) {
+    $f = foreach ($n in 'Type', 'Split', 'Text', 'Path', 'Args', 'WorkingDir', 'Groups', 'FileAction', 'GroupAction', 'Verb', 'WindowSize', 'Icon', 'Children') {
+        $v = $null
+        if ($null -ne $Item.PSObject.Properties[$n]) { $v = $Item.$n }
+        if ($n -eq 'Children') {
+            $kids = @(@($v) | Where-Object { $null -ne $_ } | ForEach-Object { Get-CmdItemCanon $_ })
+            $v = $(if ($kids.Count -gt 0) { '[' + ($kids -join '|') + ']' } else { '' })
+        }
+        elseif ($v -is [array]) { $v = ($v -join '|') }
+        if ($null -eq $v -or [string]$v -eq '' -or [string]$v -eq '0' -or [string]$v -eq 'False') { $v = '' }
+        "$n=$v"
+    }
+    return ($f -join ';')
 }
 
 function Get-RegistryKind([string]$Type) {
@@ -1191,6 +1197,7 @@ function New-CmdItemJson($Item) {
     if ($Item['Verb']) { $p.Add('"Verb":' + (ConvertTo-JsonText $Item['Verb'])) }
     if ([int]$Item['WindowSize'] -ne 0) { $p.Add('"WindowSize":' + ([int]$Item['WindowSize']).ToString($script:Inv)) }
     if ($Item['Icon']) { $p.Add('"Icon":' + (ConvertTo-JsonText $Item['Icon'])) }
+    if ($Item['ChildrenJson']) { $p.Add('"Children":' + $Item['ChildrenJson']) }
     return '{' + ($p -join ',') + '}'
 }
 
@@ -1201,10 +1208,9 @@ function ConvertFrom-B2CommandButton($Node) {
     $sub = $Node.GetAttribute('SubType')
     $text = Get-B2Text $Node 'DisplayText'
     $notes = New-Object System.Collections.Generic.List[string]
-    $item = @{ Type = 0; Split = ($sub -eq 'Split' -or $sub -eq 'DropDown'); Text = $text; Path = $null; Args = $null; WorkingDir = $null; Groups = $null; FileAction = 0; GroupAction = 0; Verb = $null; WindowSize = 0; Icon = $null }
+    $item = @{ Type = 0; Split = ($sub -eq 'Split' -or $sub -eq 'DropDown'); Text = $text; Path = $null; Args = $null; WorkingDir = $null; Groups = $null; FileAction = 0; GroupAction = 0; Verb = $null; WindowSize = 0; Icon = $null; ChildrenJson = $null }
     if ($sub -eq 'DropDown') { $notes.Add('drop-down button: imported as a split button') }
-    $children = @($Node.SelectNodes('SubItems/CommandButton')).Count
-    if ($children -gt 0) { $notes.Add("$children child items not imported") }
+    $childNodes = @($Node.SelectNodes('SubItems/CommandButton'))
     # IconResource: '"file", index' (an icon resource) or the path of an image file.
     $iconRes = Get-B2Text $Node 'IconResource'
     if ($iconRes) {
@@ -1274,9 +1280,25 @@ function ConvertFrom-B2CommandButton($Node) {
             }
             $summary = "Group '" + ($groups -join ', ') + "'"
         }
+        'ScriptingCommand' {
+            # 104 = NoOp: 2048's "virtual folder", a container for child items.
+            if ((Get-B2Text $Node 'CommandID') -ne '104') { return (& $fail "2048 advanced (script) command $(Get-B2Text $Node 'CommandID') has no fork equivalent") }
+            $item.Type = 3
+            $item.Split = $false
+            if (-not $item.Text) { $item.Text = 'Virtual folder' }
+            $summary = "Menu '$($item.Text)'"
+        }
         default { return (& $fail "$type commands have no fork equivalent") }
     }
     if ($item.Split) { $summary += ' [split]' }
+    if ($childNodes.Count -gt 0) {
+        $kids = New-Object System.Collections.Generic.List[string]
+        foreach ($c in $childNodes) {
+            $r = ConvertFrom-B2CommandButton $c
+            if ($r.Ok) { $kids.Add($r.Json) } else { $notes.Add("child item not imported: $($r.Reason)") }
+        }
+        if ($kids.Count -gt 0) { $item.ChildrenJson = '[' + ($kids -join ',') + ']'; $summary += " + $($kids.Count) child items" }
+    }
     return [pscustomobject]@{ Ok = $true; Json = (New-CmdItemJson $item); Label = $label; Summary = $summary; Notes = $notes }
 }
 
@@ -2243,8 +2265,10 @@ function Invoke-SelfTest {
         '<Verb>runas</Verb><IconResource>"%SystemRoot%\system32\SHELL32.dll", 133</IconResource><Options>0100000000000000000000000101</Options></CommandButton>' +
         '<CommandButton Type="BuiltIn"><CommandID>0</CommandID></CommandButton>' +
         '<CommandButton Type="Group" SubType="DropDown"><GroupAction>NewTabBackground</GroupAction><LabelVisibility>true</LabelVisibility><Groups><Group>G1</Group><Group>G2</Group></Groups></CommandButton>' +
-        '<CommandButton Type="ScriptingCommand"><CommandID>104</CommandID></CommandButton></CommandBar2nd>' +
-        '<CommandBarVertical IconSize="300"><CommandButton Type="File"><Path>C:\Windows</Path><FileAction>InPlace</FileAction></CommandButton></CommandBarVertical></CommandBar>' +
+        '<CommandButton Type="ScriptingCommand"><CommandID>121</CommandID></CommandButton></CommandBar2nd>' +
+        '<CommandBarVertical IconSize="300"><CommandButton Type="File"><Path>C:\Windows</Path><FileAction>InPlace</FileAction></CommandButton>' +
+        '<CommandButton Type="ScriptingCommand" SubType="DropDown"><CommandID>104</CommandID><DisplayText>VF</DisplayText><SubItems><CommandButton Type="File"><Path>C:\Temp</Path></CommandButton>' +
+        '<CommandButton Type="BuiltIn"><CommandID>0</CommandID></CommandButton><CommandButton Type="ScriptingCommand"><CommandID>121</CommandID></CommandButton></SubItems></CommandButton></CommandBarVertical></CommandBar>' +
         '<Groups><Group Name="QT2048 selftest group"><Item Type="IDL">14001F50E04FD020EA3A6910A2D808002B30309D0000</Item><Item Type="IDL">0500AABB</Item></Group></Groups>' +
         '<Events><Interactive><CommandButtonClick>020000000C00000001000000FFFFFFFF05000000FFFFFFFFFFFFFFFF63000000</CommandButtonClick>' +
         '<TabBarDoubleClick>05000000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF</TabBarDoubleClick><ViewIconDoubleClick>FFFFFFFF0000000001000000FFFFFFFF10000000FFFFFFFFFFFFFFFFFFFFFFFF</ViewIconDoubleClick>' +
@@ -2333,7 +2357,7 @@ function Invoke-SelfTest {
         'CmdBars.SecondBarItems' = '[{"Type":0,"Split":true,"Text":"PC","Path":"' + $pcName + '"},' +
             '{"Type":0,"Split":false,"Text":"c\"md","Path":"%windir%\\system32\\cmd.exe","Args":"/k","WorkingDir":"%cd%","Verb":"runas","WindowSize":1,"Icon":"%SystemRoot%\\system32\\SHELL32.dll,133"},' +
             '{"Type":2,"Split":false},{"Type":1,"Split":true,"Groups":["G1","G2"],"GroupAction":2}]'
-        'CmdBars.VerticalBarItems' = '[{"Type":0,"Split":false,"Path":"C:\\Windows","FileAction":3}]'
+        'CmdBars.VerticalBarItems' = '[{"Type":0,"Split":false,"Path":"C:\\Windows","FileAction":3},{"Type":3,"Split":false,"Text":"VF","Children":[{"Type":0,"Split":false,"Path":"C:\\Temp"},{"Type":2,"Split":false}]}]'
         'CmdBars.SecondBarIconSize' = 24; 'CmdBars.VerticalBarIconSize' = 256
         'CmdBars.SecondBarShowLabels' = [int]($plan.B2.Sections['CommandBar_ShowTextLabel2nd'] -eq 0); 'CmdBars.VerticalBarShowLabels' = 0
         'CmdBars.VerticalBarVisible' = [int]($plan.B2.Sections['CommandBar_VerticalEnabled'] -ne 0)
@@ -2346,7 +2370,8 @@ function Invoke-SelfTest {
     Check 'no MiddleClickActions without the event' (-not $pv.ContainsKey('CmdBars.MiddleClickActions')) ''
     $bar2 = @($plan.CmdBars.Bars | Where-Object { $_.Bar -eq 'CommandBar2nd' })
     Check 'command bar 2: 4 of 5 imported' ($bar2.Count -eq 1 -and $bar2[0].Imported -eq 4 -and $bar2[0].Rows.Count -eq 5) ''
-    Check 'command bar items JSON is canonical-stable' ((ConvertTo-CmdItemsCanonical $cexp['CmdBars.VerticalBarItems']) -eq (ConvertTo-CmdItemsCanonical '[{"Args":null,"FileAction":3,"GroupAction":0,"Groups":null,"Path":"C:\\Windows","Split":false,"Text":null,"Type":0,"Verb":null,"WindowSize":0,"WorkingDir":null}]')) ''
+    Check 'command bar items JSON is canonical-stable' ((ConvertTo-CmdItemsCanonical $cexp['CmdBars.VerticalBarItems']) -eq (ConvertTo-CmdItemsCanonical ('[{"Args":null,"FileAction":3,"GroupAction":0,"Groups":null,"Path":"C:\\Windows","Split":false,"Text":null,"Type":0,"Verb":null,"WindowSize":0,"WorkingDir":null},' +
+            '{"Args":null,"Children":[{"Args":null,"Children":null,"FileAction":0,"Icon":null,"Path":"C:\\Temp","Split":false,"Text":null,"Type":0},{"Children":[],"Split":false,"Type":2}],"FileAction":0,"Icon":null,"Split":false,"Text":"VF","Type":3}]'))) ''
     $gp = $plan.GroupPlan.ToArray()   # (@() around this List throws in Windows PowerShell 5.1)
     Check 'groups: PIDL items resolved, malformed one counted' ($gp.Count -eq 1 -and $gp[0].Paths.Count -eq 1 -and $gp[0].Paths[0] -eq $pcName -and $gp[0].Lost -eq 1) $(if ($gp.Count -gt 0) { "$($gp[0].Paths -join ',') lost=$($gp[0].Lost)" } else { 'none' })
 
