@@ -82,6 +82,14 @@ namespace QTTabBarLib {
         private int minAllowedTabWidth = 10;
         private QTabItem selectedTabPage;
         private StringFormat sfTypoGraphic;
+        private StringFormat sfMarquee;
+        private Timer marqueeTimer;
+        private int marqueeStart = Environment.TickCount;      // when the current scroll cycle began
+        private QTabItem marqueeHotTab;                         // hover mode: the tab that scrolls
+        private readonly List<MarqueeArea> marqueeAreas = new List<MarqueeArea>();      // moved by the timer
+        private readonly List<MarqueeArea> marqueePending = new List<MarqueeArea>();    // drawn in this paint
+        private readonly List<Rectangle> marqueePaintOrder = new List<Rectangle>();     // tabs drawn in this paint, in order
+        private readonly Dictionary<QTabItem, MarqueeStrip> marqueeStrips = new Dictionary<QTabItem, MarqueeStrip>();
         private TabSizeMode sizeMode;
         private Padding sizingMargin;
         private Bitmap[] tabImages;
@@ -165,6 +173,11 @@ namespace QTTabBarLib {
             {
                 this.sfTypoGraphic.FormatFlags |= StringFormatFlags.DirectionRightToLeft;
             }
+            // Scrolling titles are drawn whole (no "...") and clipped to the tab.
+            sfMarquee = (StringFormat)sfTypoGraphic.Clone();
+            sfMarquee.Trimming = StringTrimming.None;
+            marqueeTimer = new Timer(components) { Interval = 50 };
+            marqueeTimer.Tick += marqueeTimer_Tick;
 
             /*if (QTUtility.InNightMode)
             {
@@ -516,6 +529,14 @@ namespace QTTabBarLib {
                 brshInactv.Dispose();
                 brshInactv = null;
             }
+            if(marqueeTimer != null) {
+                marqueeTimer.Stop();
+            }
+            ClearMarquee();
+            if(sfMarquee != null) {
+                sfMarquee.Dispose();
+                sfMarquee = null;
+            }
             if(sfTypoGraphic != null) {
                 sfTypoGraphic.Dispose();
                 sfTypoGraphic = null;
@@ -815,6 +836,10 @@ namespace QTTabBarLib {
         private void DrawTab(Graphics g, Rectangle itemRct, int index, QTabItem tabHot, bool fVisualStyle) {
             try
             {
+                // Scrolling titles repaint small areas many times a second; skip tabs outside them.
+                if(!g.ClipBounds.IntersectsWith(new RectangleF(itemRct.X - 6, itemRct.Y - 6, itemRct.Width + 12, itemRct.Height + 12))) {
+                    return;
+                }
                 Rectangle textRect; // Text box area
                 Rectangle rctItem = textRect = itemRct; // Tab area
                 // Index was out of range. Must be non-negative and less than the size of the collection.
@@ -831,6 +856,7 @@ namespace QTTabBarLib {
                     rctItem.Height -= 2;  // Unselected tab: height reduced by 2 pixels
                     // textRect.Y += 2; // Unselected tab: text area y-axis offset of 2 pixels
                 }
+                marqueePaintOrder.Add(rctItem);   // what this tab covers, for scrolling titles
                 DrawBackground(g, bSelected, fHot, rctItem, baseTabItem.Edge, fVisualStyle, index);
                 int tabPosYHalfTabHeight = (rctItem.Height - 0x10) / 2; // Tab Y-axis distance, half of 10 pixels
                 // Check whether to use an image
@@ -919,38 +945,41 @@ namespace QTTabBarLib {
                                             textRect.Y + textPosY,
                                             Math.Min((baseTabItem.TitleTextSize.Width + 2f), (textRect.Width - textPosX)), 
                                             textRect.Height);
+                Font titleFont = (bSelected && fActiveTxtBold) ?
+                        (baseTabItem.Underline ? fntBold_Underline : fntBold) :
+                        (baseTabItem.Underline ? fnt_Underline : Font);
+                // A title wider than its tab scrolls through it like an LED sign (see TabTitleScroll).
+                float titleSpace = textRect.Width - textPosX;
+                bool fScrolls = ScrollsTitle(baseTabItem, fHot, titleSpace);
+                if(!fScrolls) {
+                    DropMarquee(baseTabItem);
+                }
+                if(fScrolls) {
+                    float scrollSpace = titleSpace;
+                    if(fDrawCloseButton && fCloseBtnOnHover && fHot) {
+                        // Keep the moving text out from under the close button shown on hover.
+                        Rectangle rctClose = GetCloseButtonRectangle(baseTabItem.TabBounds, bSelected);
+                        float untilClose = rctClose.X - 2 - (textRect.X + textPosX);
+                        if(untilClose >= 8f) scrollSpace = Math.Min(scrollSpace, untilClose);
+                    }
+                    DrawScrollingTitle(baseTabItem, titleFont, bSelected, fDrawShadow,
+                            new RectangleF(textRect.X + textPosX, textRct.Y, scrollSpace, textRct.Height));
+                }
                 // Draw shadow text, dark mode
-                if(fDrawShadow)
+                else if(fDrawShadow)
                 {
-                    
-                    // Color clrTxtColor = bSelected ? colorSet[0] : colorSet[1];
-                    // Color clrShdwColor = bSelected ? colorSet[3] : colorSet[4];
-                    DrawTextWithShadow(g, 
-                        baseTabItem.Text, 
-                        bSelected ? colorSet[0] : colorSet[1], 
-                        bSelected ? colorSet[3] : colorSet[4], 
-                        (bSelected && fActiveTxtBold) ? 
-                            (baseTabItem.Underline ? fntBold_Underline : fntBold) : 
-                            (baseTabItem.Underline ? fnt_Underline : Font), 
-                        textRct, 
+                    DrawTextWithShadow(g,
+                        baseTabItem.Text,
+                        bSelected ? colorSet[0] : colorSet[1],
+                        bSelected ? colorSet[3] : colorSet[4],
+                        titleFont,
+                        textRct,
                         sfTypoGraphic);
                 }
                 else {
-                    if (QTUtility.InNightMode)
-                    {
-                        brshActive = new SolidBrush(Config.Skin.TabTextActiveColor);
-                        brshInactv = new SolidBrush(Config.Skin.TabTextInactiveColor);
+                    using(SolidBrush brush = new SolidBrush(bSelected ? Config.Skin.TabTextActiveColor : Config.Skin.TabTextInactiveColor)) {
+                        g.DrawString(baseTabItem.Text, titleFont, brush, textRct, sfTypoGraphic);
                     }
-                    else
-                    {
-                        brshActive = new SolidBrush(Config.Skin.TabTextActiveColor);
-                        brshInactv = new SolidBrush(Config.Skin.TabTextInactiveColor);
-                    }
-                    g.DrawString(baseTabItem.Text, 
-                            (bSelected && fActiveTxtBold) ? 
-                            (baseTabItem.Underline ? fntBold_Underline : fntBold) : 
-                            (baseTabItem.Underline ? fnt_Underline : Font),
-                            bSelected ? brshActive : brshInactv, textRct, sfTypoGraphic);
                 }
                 if(iFocusedTabIndex == index) {
                     Rectangle rectangle = rctItem;
@@ -1049,6 +1078,273 @@ namespace QTTabBarLib {
                     " sub=" + probe(() => fntSubText == null ? null : (object)fntSubText.Height) +
                     " sf=" + probe(() => sfTypoGraphic == null ? null : (object)sfTypoGraphic.FormatFlags) +
                     " g=" + probe(() => g.ClipBounds);
+        }
+
+        // ---------------------------------------------------------------- scrolling titles
+
+        // Whether this tab's title scrolls: it doesn't fit, and Config.Skin.TabTitleScroll asks for
+        // it (1: the tab under the mouse, 2: every tab).
+        private bool ScrollsTitle(QTabItem tab, bool fHot, float space) {
+            int mode = Config.Skin.TabTitleScroll;
+            if(mode <= 0 || space < 8f || tab.TitleTextSize.Width + 2f <= space) return false;
+            return mode >= 2 || fHot;
+        }
+
+        // The whole title, moving left inside the tab with a copy following it, clipped to the
+        // title area, so the tab keeps its size. Drawn at the end of the paint (FinishMarquee), so
+        // that the area's background can be kept without it: the timer then moves the title on the
+        // screen itself, over that background - repainting the tab bar for every step costs a lot
+        // with many long tabs.
+        private void DrawScrollingTitle(QTabItem tab, Font font, bool bSelected, bool fShadow, RectangleF area) {
+            if(Config.Skin.TabTitleScroll == 1 && tab != marqueeHotTab) {
+                marqueeHotTab = tab;                       // start from the beginning on a new tab
+                marqueeStart = Environment.TickCount;
+            }
+            // The layout rectangle reaches above the tab (the text is centred by bottom alignment):
+            // keep to the tab, whose pixels these are (another row's title can be just above).
+            RectangleF shown = RectangleF.Intersect(area, ClientRectangle);
+            shown.Intersect(marqueePaintOrder[marqueePaintOrder.Count - 1]);
+            if(shown.Width < 1f || shown.Height < 1f) return;
+            MarqueeArea m = new MarqueeArea {
+                Tab = tab,
+                Font = font,
+                Shadow = fShadow,
+                TextColor = fShadow
+                        ? (bSelected ? colorSet[0] : colorSet[1])
+                        : (bSelected ? Config.Skin.TabTextActiveColor : Config.Skin.TabTextInactiveColor),
+                ShadowColor = bSelected ? colorSet[3] : colorSet[4],
+                Layout = area,
+                Area = shown,
+                Bounds = Rectangle.FromLTRB((int)Math.Floor(shown.Left), (int)Math.Floor(shown.Top),
+                        (int)Math.Ceiling(shown.Right), (int)Math.Ceiling(shown.Bottom)),
+                Period = tab.TitleTextSize.Width + Math.Max(24f, font.Height * 2f),   // the title and the gap after it
+                Order = marqueePaintOrder.Count - 1,
+            };
+            m.Offset = (int)MarqueeOffset(m.Period);
+            marqueePending.Add(m);
+        }
+
+        // Ends a paint: keeps the background of the scrolling titles drawn in it, then draws them.
+        private void FinishMarquee(Graphics g, Rectangle clip) {
+            try {
+                foreach(MarqueeArea m in marqueePending) {
+                    DropMarquee(m.Tab);
+                    m.Clip = new Region(m.Area);
+                    for(int i = m.Order + 1; i < marqueePaintOrder.Count; i++) {
+                        m.Clip.Exclude(marqueePaintOrder[i]);   // tabs drawn over this one
+                    }
+                    if(fNeedPlusButton) m.Clip.Exclude(newRect);
+                    // Outside the paint's clip the buffer holds nothing: then the timer has it all
+                    // painted again rather than draw over a background it doesn't have.
+                    if(clip.Contains(m.Bounds)) {
+                        m.Background = new Bitmap(m.Bounds.Width, m.Bounds.Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+                        using(Graphics gb = Graphics.FromImage(m.Background)) {
+                            IntPtr hdcDst = gb.GetHdc();
+                            IntPtr hdcSrc = g.GetHdc();
+                            try {
+                                PInvoke.BitBlt(hdcDst, 0, 0, m.Bounds.Width, m.Bounds.Height, hdcSrc, m.Bounds.X, m.Bounds.Y, 0x00CC0020 /* SRCCOPY */);
+                            }
+                            finally {
+                                g.ReleaseHdc(hdcSrc);
+                                gb.ReleaseHdc(hdcDst);
+                            }
+                        }
+                    }
+                    System.Drawing.Drawing2D.GraphicsState state = g.Save();
+                    try {
+                        g.SetClip(m.Clip, System.Drawing.Drawing2D.CombineMode.Intersect);
+                        DrawMarqueeTitle(g, m);
+                    }
+                    finally {
+                        g.Restore(state);
+                    }
+                    marqueeAreas.Add(m);
+                }
+            }
+            finally {
+                marqueePending.Clear();
+                marqueePaintOrder.Clear();
+            }
+            if(marqueeAreas.Count > 0 && !marqueeTimer.Enabled) marqueeTimer.Start();
+        }
+
+        // At rest drawn like the other titles; moving, copied from an image rendered once (the
+        // whole title is drawn four times with the shadow).
+        private void DrawMarqueeTitle(Graphics g, MarqueeArea m) {
+            if(m.Offset == 0) {
+                RectangleF r = new RectangleF(m.Layout.X, m.Layout.Y, m.Tab.TitleTextSize.Width + 2f, m.Layout.Height);
+                if(m.Shadow) {
+                    DrawTextWithShadow(g, m.Tab.Text, m.TextColor, m.ShadowColor, m.Font, r, sfMarquee);
+                }
+                else {
+                    using(SolidBrush brush = new SolidBrush(m.TextColor)) {
+                        g.DrawString(m.Tab.Text, m.Font, brush, r, sfMarquee);
+                    }
+                }
+                return;
+            }
+            Bitmap strip = GetMarqueeStrip(m);
+            int y = (int)Math.Floor(m.Layout.Y);
+            for(int i = 0; i < 2; i++) {
+                int x = (int)Math.Round(m.Layout.X + i * m.Period) - m.Offset - 1;
+                if(x + strip.Width < m.Area.Left || x > m.Area.Right) continue;
+                g.DrawImage(strip, new Rectangle(x, y, strip.Width, strip.Height));
+            }
+        }
+
+        // The title as drawn on the tab, on a transparent image, 1 px in from the left and with
+        // the area's position below a whole pixel.
+        private Bitmap GetMarqueeStrip(MarqueeArea m) {
+            float top = m.Layout.Y - (float)Math.Floor(m.Layout.Y);
+            MarqueeStrip strip;
+            if(marqueeStrips.TryGetValue(m.Tab, out strip)) {
+                if(strip.Text == m.Tab.Text && strip.Font == m.Font && strip.TextColor == m.TextColor.ToArgb() &&
+                        strip.ShadowColor == m.ShadowColor.ToArgb() && strip.Shadow == m.Shadow &&
+                        strip.Top == top && strip.Height == m.Layout.Height) {
+                    return strip.Image;
+                }
+                strip.Image.Dispose();
+            }
+            Bitmap bmp = new Bitmap(
+                    (int)Math.Ceiling(m.Tab.TitleTextSize.Width) + 6,
+                    (int)Math.Ceiling(top + m.Layout.Height) + 3,
+                    System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+            using(Graphics g = Graphics.FromImage(bmp)) {
+                g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;  // no ClearType on transparency
+                RectangleF r = new RectangleF(1f, top, m.Tab.TitleTextSize.Width + 2f, m.Layout.Height);
+                if(m.Shadow) {
+                    DrawTextWithShadow(g, m.Tab.Text, m.TextColor, m.ShadowColor, m.Font, r, sfMarquee);
+                }
+                else {
+                    using(SolidBrush brush = new SolidBrush(m.TextColor)) {
+                        g.DrawString(m.Tab.Text, m.Font, brush, r, sfMarquee);
+                    }
+                }
+            }
+            marqueeStrips[m.Tab] = new MarqueeStrip {
+                Text = m.Tab.Text, Font = m.Font, TextColor = m.TextColor.ToArgb(), ShadowColor = m.ShadowColor.ToArgb(),
+                Shadow = m.Shadow, Top = top, Height = m.Layout.Height, Image = bmp
+            };
+            return bmp;
+        }
+
+        // A pause at the start, then a steady move left until the following copy has taken the
+        // title's place; then again.
+        private float MarqueeOffset(float period) {
+            const float speed = 40f;    // px per second
+            const int pause = 1500;     // ms
+            int scroll = Math.Max(1, (int)(period / speed * 1000f));
+            int t = (unchecked(Environment.TickCount - marqueeStart) & int.MaxValue) % (pause + scroll);
+            return t < pause ? 0f : (t - pause) * speed / 1000f;
+        }
+
+        // Moves the scrolling titles that are due to; stops when there are none (no long titles,
+        // the option is off, or the window is minimized).
+        private void marqueeTimer_Tick(object sender, EventArgs e) {
+            if(marqueeAreas.Count == 0 || !Visible || !IsHandleCreated || PInvoke.IsIconic(PInvoke.GetAncestor(Handle, 2 /* GA_ROOT */))) {
+                marqueeTimer.Stop();
+                ClearMarquee();
+                return;
+            }
+            Graphics g = null;
+            try {
+                foreach(MarqueeArea m in marqueeAreas.ToArray()) {
+                    if(!tabPages.Contains(m.Tab)) {
+                        DropMarquee(m.Tab);
+                        continue;
+                    }
+                    int offset = (int)MarqueeOffset(m.Period);
+                    if(offset == m.Offset) continue;   // pausing
+                    m.Offset = offset;
+                    if(m.Background == null) {
+                        Rectangle r = m.Bounds;
+                        r.Inflate(3, 3);   // the shadow is drawn up to 2 px off
+                        Invalidate(r);
+                        continue;
+                    }
+                    if(m.Frame == null) {
+                        m.Frame = new Bitmap(m.Bounds.Width, m.Bounds.Height, System.Drawing.Imaging.PixelFormat.Format32bppRgb);
+                    }
+                    using(Graphics f = Graphics.FromImage(m.Frame)) {
+                        f.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceCopy;
+                        f.DrawImage(m.Background, new Rectangle(0, 0, m.Bounds.Width, m.Bounds.Height));
+                        f.CompositingMode = System.Drawing.Drawing2D.CompositingMode.SourceOver;
+                        f.TranslateTransform(-m.Bounds.X, -m.Bounds.Y);
+                        f.SetClip(m.Clip, System.Drawing.Drawing2D.CombineMode.Replace);
+                        DrawMarqueeTitle(f, m);
+                    }
+                    if(g == null) g = CreateGraphics();
+                    g.SetClip(m.Clip, System.Drawing.Drawing2D.CombineMode.Replace);
+                    g.DrawImage(m.Frame, m.Bounds);
+                }
+            }
+            finally {
+                if(g != null) g.Dispose();
+            }
+            // Forget the images of titles that stopped scrolling.
+            if(marqueeStrips.Count > marqueeAreas.Count) {
+                List<QTabItem> stale = new List<QTabItem>();
+                foreach(QTabItem tab in marqueeStrips.Keys) {
+                    if(marqueeAreas.FindIndex(m => m.Tab == tab) < 0) stale.Add(tab);
+                }
+                foreach(QTabItem tab in stale) {
+                    marqueeStrips[tab].Image.Dispose();
+                    marqueeStrips.Remove(tab);
+                }
+            }
+        }
+
+        // The tab's title is no longer moved by the timer (it was painted without scrolling, or
+        // painted again).
+        private void DropMarquee(QTabItem tab) {
+            int i = marqueeAreas.FindIndex(m => m.Tab == tab);
+            if(i < 0) return;
+            marqueeAreas[i].Dispose();
+            marqueeAreas.RemoveAt(i);
+        }
+
+        private void ClearMarquee() {
+            foreach(MarqueeArea m in marqueeAreas) {
+                m.Dispose();
+            }
+            marqueeAreas.Clear();
+            foreach(MarqueeStrip strip in marqueeStrips.Values) {
+                strip.Image.Dispose();
+            }
+            marqueeStrips.Clear();
+        }
+
+        private sealed class MarqueeArea : IDisposable {
+            public QTabItem Tab;
+            public Font Font;
+            public bool Shadow;
+            public Color TextColor, ShadowColor;
+            public RectangleF Layout;      // the title's layout rectangle (client coordinates)
+            public RectangleF Area;        // where it shows: Layout within the tab bar
+            public Rectangle Bounds;       // the whole pixels around Area
+            public Region Clip;            // Area, less the tabs drawn over it
+            public float Period;
+            public int Offset;             // as last drawn
+            public int Order;              // index in marqueePaintOrder
+            public Bitmap Background;      // Bounds as the last paint left it, without the title
+            public Bitmap Frame;           // the timer's work image
+
+            public void Dispose() {
+                if(Clip != null) Clip.Dispose();
+                if(Background != null) Background.Dispose();
+                if(Frame != null) Frame.Dispose();
+                Clip = null;
+                Background = Frame = null;
+            }
+        }
+
+        private sealed class MarqueeStrip {
+            public string Text;
+            public Font Font;
+            public int TextColor, ShadowColor;
+            public bool Shadow;
+            public float Top, Height;
+            public Bitmap Image;
         }
 
         private static void DrawTextWithShadow(Graphics g, string txt, Color clrTxt, Color clrShdw, Font fnt, RectangleF rct, StringFormat sf) {
@@ -1462,6 +1758,8 @@ namespace QTTabBarLib {
 
         protected override void OnPaint(PaintEventArgs e) {
             fOncePainted = true;
+            marqueePending.Clear();
+            marqueePaintOrder.Clear();
             if(iMultipleType != 0) {
                 OnPaint_MultipleRow(e);
             }
@@ -1489,6 +1787,7 @@ namespace QTTabBarLib {
                     {
                         DrawPlusButton(e.Graphics, GetItemRectangle(tabPages.Count - 1));
                     }
+                    FinishMarquee(e.Graphics, e.ClipRectangle);
 
                     ShowUpDown(fNeedToDrawUpDown);
                 }
@@ -1569,6 +1868,7 @@ namespace QTTabBarLib {
                         }
                     }
                 }
+                FinishMarquee(e.Graphics, e.ClipRectangle);
                 ShowUpDown(false);
             }
             catch(Exception exception) {

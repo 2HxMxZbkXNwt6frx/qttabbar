@@ -331,7 +331,8 @@
             'TabShadInactiveColor:Color', 'TabShadHotColor:Color', 'TabTitleShadows:bool', 'TabTextCentered:bool',
             'UseRebarBGColor:bool', 'RebarColor:Color', 'UseRebarImage:bool', 'RebarStretchMode:StretchMode',
             'RebarImageFile:string', 'RebarImageSeperateBars:bool', 'RebarSizeMargin:Padding', 'ActiveTabInBold:bool',
-            'SkinAutoColorChangeClose:bool', 'DrawHorizontalExplorerBarBgColor:bool', 'DrawVerticalExplorerBarBgColor:bool'
+            'SkinAutoColorChangeClose:bool', 'DrawHorizontalExplorerBarBgColor:bool', 'DrawVerticalExplorerBarBgColor:bool',
+            'TabTitleScroll:int'
         )
         BBar = @(
             'ButtonIndexes:int[]', 'ActivePluginIDs:string[]', 'LargeButtons:bool', 'LockSearchBarWidth:bool',

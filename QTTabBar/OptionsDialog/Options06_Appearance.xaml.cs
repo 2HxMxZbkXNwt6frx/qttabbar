@@ -36,6 +36,16 @@ namespace QTTabBarLib {
             // Bindings in context menus won't work without this.
             NameScope.SetNameScope(ctxTabTextColor, NameScope.GetNameScope(this));
             NameScope.SetNameScope(ctxShadowTextColor, NameScope.GetNameScope(this));
+
+            // Config._Skin.TabTitleScroll order.
+            bool ja = QTUtility.IsJapanese;
+            lblTabTitleScroll.Content = ja ? "長いタイトル:" : "Long titles:";
+            string[] scrollModes = ja
+                    ? new[] { "省略する (…)", "マウスを乗せるとスクロール", "常にスクロール" }
+                    : new[] { "Truncate (...)", "Scroll on mouse over", "Always scroll" };
+            for(int i = 0; i < scrollModes.Length; i++) {
+                ((ComboBoxItem)cmbTabTitleScroll.Items[i]).Content = scrollModes[i];
+            }
         }
 
         public override void InitializeConfig() {

@@ -613,6 +613,8 @@ namespace QTTabBarLib {
             public bool SkinAutoColorChangeClose              { get; set; }
             public bool DrawHorizontalExplorerBarBgColor { get; set; }
             public bool DrawVerticalExplorerBarBgColor { get; set; }
+            // A title too long for its tab scrolls through it: 0 never, 1 under the mouse, 2 always.
+            public int TabTitleScroll            { get; set; }
 
             public _Skin() {
                 /* UseTabSkin = false;
@@ -679,6 +681,7 @@ namespace QTTabBarLib {
                 SkinAutoColorChangeClose = false;  // Whether auto color-switching is disabled?
                 DrawHorizontalExplorerBarBgColor = false; //
                 DrawVerticalExplorerBarBgColor = false; //
+                TabTitleScroll = 2;
             }
 
             // SwitchNighMode, reporting whether any colour actually changed, so callers only refresh
@@ -1255,6 +1258,7 @@ namespace QTTabBarLib {
                 // Adjust minimum tab width
 				Config.Skin.TabMinWidth = QTUtility.ValidateMinMax(Config.Skin.TabMinWidth, 10, 100);
                 Config.Skin.TabMaxWidth = QTUtility.ValidateMinMax(Config.Skin.TabMaxWidth, 50, 999);
+                Config.Skin.TabTitleScroll = QTUtility.ValidateMinMax(Config.Skin.TabTitleScroll, 0, 2);
                 Config.Skin.OverlapPixels = QTUtility.ValidateMinMax(Config.Skin.TabHeight, 0, 20);
                 Config.Skin.TabTextFont = Config.Skin.TabTextFont ?? Control.DefaultFont;
                 Func<Padding, Padding> validatePadding = p => {

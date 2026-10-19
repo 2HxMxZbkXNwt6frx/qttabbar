@@ -213,6 +213,7 @@
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -394,8 +395,26 @@
 							Content="Close Auto Color"
 							Height="16"
 							Margin="6, 3"
-							IsChecked="{Binding Path=SkinAutoColorChangeClose}"/>	
+							IsChecked="{Binding Path=SkinAutoColorChangeClose}"/>
             </StackPanel>
+            <!-- Item texts are set in the constructor. -->
+            <Label x:Name="lblTabTitleScroll"
+                Grid.Column="3"
+                Grid.Row="2"
+                Height="16"
+                Padding="0"/>
+            <ComboBox x:Name="cmbTabTitleScroll"
+                Grid.Column="4"
+                Grid.Row="2"
+                HorizontalAlignment="Left"
+                Margin="10, 5"
+                MinWidth="180"
+                SelectedIndex="{Binding Path=TabTitleScroll}"
+                VerticalAlignment="Center">
+                <ComboBoxItem/>
+                <ComboBoxItem/>
+                <ComboBoxItem/>
+            </ComboBox>
         </Grid>
         <Label
             Content="{qt:Resx Key=Options_Page06_Appearance, Index=24}"
