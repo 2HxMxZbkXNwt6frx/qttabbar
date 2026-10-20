@@ -204,6 +204,18 @@ function Get-ExplorerProcesses {
     Get-Process explorer -ErrorAction SilentlyContinue | Where-Object { $_.SessionId -eq $session }
 }
 
+function Test-ClrLoaded($Process) {
+    try { return [bool]($Process.Modules | Where-Object { $_.ModuleName -eq 'clr.dll' }) } catch { return $false }
+}
+
+# Explorer processes that loaded .NET (so QTTabBar) and started before the DLL in the GAC last
+# changed: they still run the previous build. One that has not loaded it yet gets the new one.
+function Get-StaleExplorers {
+    $gac = Get-GacDll
+    if (-not $gac) { return @() }
+    @(Get-ExplorerProcesses | Where-Object { $_.StartTime -lt $gac.LastWriteTime -and (Test-ClrLoaded $_) })
+}
+
 # ---------------------------------------------------------------- Status
 
 function Show-Status {
@@ -261,9 +273,9 @@ function Show-Status {
     Say ''
     Say '== Explorer'
     foreach ($p in @(Get-ExplorerProcesses)) {
-        $clr = [bool]($p.Modules | Where-Object { $_.ModuleName -eq 'clr.dll' })
+        $clr = Test-ClrLoaded $p
         Say ("  explorer pid {0} started {1:yyyy-MM-dd HH:mm:ss}{2}" -f $p.Id, $p.StartTime, $(if ($clr) { ', .NET loaded (QTTabBar)' } else { '' }))
-        if ($gac -and $p.StartTime -lt $gac.LastWriteTime) { $warn.Add("Explorer pid $($p.Id) started before QTTabBar.dll was replaced; restart Explorer.") }
+        if ($gac -and $clr -and $p.StartTime -lt $gac.LastWriteTime) { $warn.Add("Explorer pid $($p.Id) loaded QTTabBar before QTTabBar.dll was replaced; restart Explorer.") }
     }
     $frames = @([QTDoctor]::TopWindows('CabinetWClass'))
     if ($frames.Count -eq 0) { Say '  no folder window open (open one and run Status again to check it)' }
@@ -385,6 +397,7 @@ function Invoke-Watch {
 # ---------------------------------------------------------------- Repair
 
 function Stop-Explorer {
+    $since = Get-Date
     $tray = [QTDoctor]::FindWindow('Shell_TrayWnd', [NullString]::Value)
     if ($tray -ne [IntPtr]::Zero) { [void][QTDoctor]::PostMessage($tray, 0x5B4, [IntPtr]::Zero, [IntPtr]::Zero) }   # WM_USER+436: Exit Explorer
     $deadline = (Get-Date).AddSeconds(15)
@@ -392,10 +405,15 @@ function Stop-Explorer {
     # Folder windows in processes of their own, or a shell that did not exit.
     foreach ($p in @(Get-ExplorerProcesses)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
-    return @(Get-ExplorerProcesses).Count -eq 0
+    # After a forced close Windows starts the shell again by itself (AutoRestartShell); only the
+    # processes from before count.
+    return @(Get-ExplorerProcesses | Where-Object { $_.StartTime -lt $since }).Count -eq 0
 }
 
 function Start-Explorer {
+    # After a forced close Windows may be starting it already.
+    $deadline = (Get-Date).AddSeconds(5)
+    while ((Get-Date) -lt $deadline -and [QTDoctor]::FindWindow('Shell_TrayWnd', [NullString]::Value) -eq [IntPtr]::Zero) { Start-Sleep -Milliseconds 300 }
     if ([QTDoctor]::FindWindow('Shell_TrayWnd', [NullString]::Value) -ne [IntPtr]::Zero) { return }
     Start-Process -FilePath (Join-Path $env:SystemRoot 'explorer.exe')
     $deadline = (Get-Date).AddSeconds(20)
@@ -428,6 +446,12 @@ function Invoke-Repair {
     } catch {
         Write-Warning "The install step did not run: $($_.Exception.Message)"
     } finally {
+        Start-Explorer
+    }
+    # A shell that Windows restarted by itself during the install may have loaded the old build.
+    if (@(Get-StaleExplorers).Count -gt 0) {
+        Write-Host 'Restarting Explorer again: it was still running the previous QTTabBar build.'
+        [void](Stop-Explorer)
         Start-Explorer
     }
     if (Test-Path $result) {
