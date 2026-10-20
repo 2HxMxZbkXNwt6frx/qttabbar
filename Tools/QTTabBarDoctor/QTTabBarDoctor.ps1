@@ -18,9 +18,11 @@
         Windows opened something of its own next to QTTabBar's tab.
 
     -Action Repair   (run from a NORMAL PowerShell; asks for admin rights for the install step)
-        Closes Explorer, removes every QTTabBar installation (MSI products and Setup.exe bundles),
-        installs -Msi (default: the newest build of this repository), checks that the DLL in the
-        GAC is that build's, and starts Explorer again. QTTabBar's settings (HKCU) are kept.
+        Closes the folder windows (QTTabBar keeps their tabs for the next window) and ends every
+        Explorer process, removes every QTTabBar installation (MSI products and Setup.exe
+        bundles), installs -Msi (default: the newest build of this repository), checks that the
+        DLL in the GAC is that build's, and starts a fresh Explorer. QTTabBar's settings (HKCU)
+        are kept.
         Use -WhatIf to see the plan only.
 
     Installing over a running Explorer can leave the previous QTTabBar.dll in the GAC: Explorer
@@ -111,6 +113,14 @@ public static class QTDoctor
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint pid);
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string cls, string name);
     [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+    [DllImport("user32.dll")] static extern IntPtr SendMessageTimeout(IntPtr h, uint msg, IntPtr w, IntPtr l, uint flags, uint timeout, out IntPtr result);
+
+    // SMTO_ABORTIFHUNG: a hung window does not hold the caller up.
+    public static bool Send(IntPtr h, uint msg, IntPtr w, IntPtr l, uint timeoutMs)
+    {
+        IntPtr result;
+        return SendMessageTimeout(h, msg, w, l, 2, timeoutMs, out result) != IntPtr.Zero;
+    }
 
     public static string ClassOf(IntPtr h) { StringBuilder s = new StringBuilder(256); GetClassName(h, s, 256); return s.ToString(); }
     public static string TextOf(IntPtr h) { StringBuilder s = new StringBuilder(256); GetWindowText(h, s, 256); return s.ToString(); }
@@ -398,15 +408,18 @@ function Invoke-Watch {
 
 function Stop-Explorer {
     $since = Get-Date
-    $tray = [QTDoctor]::FindWindow('Shell_TrayWnd', [NullString]::Value)
-    if ($tray -ne [IntPtr]::Zero) { [void][QTDoctor]::PostMessage($tray, 0x5B4, [IntPtr]::Zero, [IntPtr]::Zero) }   # WM_USER+436: Exit Explorer
-    $deadline = (Get-Date).AddSeconds(15)
-    while ((Get-Date) -lt $deadline -and @(Get-ExplorerProcesses).Count -gt 0) { Start-Sleep -Milliseconds 300 }
-    # Folder windows in processes of their own, or a shell that did not exit.
+    # Folder windows first, the way QTTabBar's "Close window" does it (WM_CLOSE with lParam 1):
+    # every tab closes and the session is saved for the next window. A plain WM_CLOSE may close
+    # only the current tab ("the close button closes the current tab"). Sent, not posted: a
+    # posted WM_CLOSE closes the window without passing QTTabBar (no session saved).
+    foreach ($f in [QTDoctor]::TopWindows('CabinetWClass')) { [void][QTDoctor]::Send($f, 0x10, [IntPtr]::Zero, [IntPtr]1, 5000) }
+    $deadline = (Get-Date).AddSeconds(5)
+    while ((Get-Date) -lt $deadline -and @([QTDoctor]::TopWindows('CabinetWClass')).Count -gt 0) { Start-Sleep -Milliseconds 200 }
+    # Then every Explorer process at once (waiting for the shell to exit on request did not always
+    # work). Windows starts the shell again by itself (AutoRestartShell); without folder windows it
+    # does not load QTTabBar, and it is replaced at the end.
     foreach ($p in @(Get-ExplorerProcesses)) { Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue }
     Start-Sleep -Seconds 1
-    # After a forced close Windows starts the shell again by itself (AutoRestartShell); only the
-    # processes from before count.
     return @(Get-ExplorerProcesses | Where-Object { $_.StartTime -lt $since }).Count -eq 0
 }
 
@@ -427,11 +440,11 @@ function Invoke-Repair {
     $Msi = Resolve-Msi
 
     Write-Host 'Plan:'
-    Write-Host '  1. close Explorer (the taskbar comes back at the end)'
+    Write-Host '  1. close the folder windows (QTTabBar keeps their tabs for next time), end Explorer'
     foreach ($b in @(Get-QTBundles)) { Write-Host "  2. uninstall Setup.exe bundle '$($b.Name)'" }
     foreach ($p in @(Get-QTProducts)) { Write-Host "  2. uninstall $($p.ProductCode) $($p.Name)" }
     Write-Host "  3. install $Msi"
-    Write-Host '  4. check the QTTabBar.dll in the GAC, start Explorer'
+    Write-Host '  4. check the QTTabBar.dll in the GAC, start Explorer afresh'
     Write-Host '  QTTabBar settings (HKCU\Software\QTTabBar) are kept.'
     if (-not $PSCmdlet.ShouldProcess($Msi, 'Reinstall QTTabBar')) { return }
 
@@ -446,11 +459,7 @@ function Invoke-Repair {
     } catch {
         Write-Warning "The install step did not run: $($_.Exception.Message)"
     } finally {
-        Start-Explorer
-    }
-    # A shell that Windows restarted by itself during the install may have loaded the old build.
-    if (@(Get-StaleExplorers).Count -gt 0) {
-        Write-Host 'Restarting Explorer again: it was still running the previous QTTabBar build.'
+        # The shell Windows restarted by itself ran during the install: start a fresh one.
         [void](Stop-Explorer)
         Start-Explorer
     }
