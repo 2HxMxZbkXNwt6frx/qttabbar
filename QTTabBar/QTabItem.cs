@@ -412,6 +412,10 @@ namespace QTTabBarLib {
             if(autoNav && stckHistoryBackward.Count > 0 && stckHistoryBackward.Peek().AutoNav) {
                 stckHistoryBackward.Pop();
             }
+            // A start-up tab that was not looked up (SetUnresolvedLocation) gives way to the real entry.
+            if(stckHistoryBackward.Count > 0 && stckHistoryBackward.Peek().IDL == null && path.PathEquals(stckHistoryBackward.Peek().Path)) {
+                stckHistoryBackward.Pop();
+            }
             stckHistoryBackward.Push(new LogData(path, idl, hash, autoNav));
             Branches.AddRange(stckHistoryForward.Except(Branches));
             foreach(LogData data2 in stckHistoryBackward) {
@@ -420,6 +424,16 @@ namespace QTTabBarLib {
             stckHistoryForward.Clear();
             CurrentPath = path;
             CurrentIDL = idl;
+        }
+
+        // A tab whose folder is not looked up yet: a network folder that did not answer when the
+        // window opened. Nothing here touches the network; opening the tab looks the folder up
+        // (tab selection falls back to CurrentPath when there is no IDL).
+        internal void SetUnresolvedLocation(string path) {
+            currentPath = path;
+            imageKey = (Owner != null && Owner.DrawFolderImage) ? QTUtility.NetworkImageKey() : path;
+            CurrentIDL = null;
+            stckHistoryBackward.Push(new LogData(path, null, -1, false));
         }
 
         public void OnClose() {

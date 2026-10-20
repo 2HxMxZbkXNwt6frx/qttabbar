@@ -428,8 +428,7 @@ namespace QTTabBarLib {
                         SetImageKey(path, path);
                         return path;
                     }
-                    SetImageKey("mynetwork", PATH_MYNETWORK);
-                    return "mynetwork";
+                    return NetworkImageKey();
                 }
                 if(path.StartsWith("::")) {
                     SetImageKey(path, path);
@@ -1012,6 +1011,12 @@ namespace QTTabBarLib {
             }
         }
         
+        // The generic network icon, without touching the network.
+        internal static string NetworkImageKey() {
+            SetImageKey("mynetwork", PATH_MYNETWORK);
+            return "mynetwork";
+        }
+
         // Check whether the image list is empty
         private static void SetImageKey(string key, string itemPath) {
             if( null != ImageListGlobal.Images && 

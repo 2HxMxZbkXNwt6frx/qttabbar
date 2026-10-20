@@ -382,7 +382,9 @@ namespace QTTabBarLib {
             // Skip auto-opening group tabs if Shift is held or another instance already exists
             if(ModifierKeys == Keys.Shift || InstanceManager.GetTotalInstanceCount() != 0) return;
             // Walk every group marked "open on startup", excluding the current group
-            foreach(string path in GroupsManager.Groups.Where(g => g.Startup && openingGRP != g.Name).SelectMany(g => g.Paths)) {
+            List<string> startupPaths = GroupsManager.Groups.Where(g => g.Startup && openingGRP != g.Name).SelectMany(g => g.Paths).ToList();
+            Dictionary<string, NetworkLookup> network = LookUpNetworkFolders(startupPaths);
+            foreach(string path in startupPaths) {
                 // If "never open the same tab twice" is configured, skip paths that are already open
                 if(Config.Tabs.NeverOpenSame) {
                     if(path.PathEquals(openingPath)) {
@@ -395,8 +397,18 @@ namespace QTTabBarLib {
                         continue;
                     }
                 }
+                NetworkLookup lookup;
+                if(network.TryGetValue(path, out lookup) && !lookup.Done) {
+                    // A network folder that did not answer in time: looked up when shown.
+                    QTabItem pending = new QTabItem(QTUtility2.MakePathDisplayText(path, false), string.Empty, tabControl1);
+                    pending.SetUnresolvedLocation(path);
+                    pending.ToolTipText = QTUtility2.MakePathDisplayText(path, true);
+                    pending.Underline = true;
+                    tabControl1.TabPages.Add(pending);
+                    continue;
+                }
                 // Create the IDL wrapper and check whether the path is usable
-                using(IDLWrapper wrapper = new IDLWrapper(path)) {
+                using(IDLWrapper wrapper = lookup != null ? new IDLWrapper(lookup.Idl, false) : new IDLWrapper(path)) {
                     if(!wrapper.Available) continue;
                     // Create the new tab object
                     QTabItem tabPage = new QTabItem(QTUtility2.MakePathDisplayText(path, false), path, tabControl1);
@@ -6563,6 +6575,7 @@ namespace QTTabBarLib {
                             string[] strArray = ((string)key.GetValue("TabsLocked2", string.Empty)).Split(QTUtility.SEPARATOR_CHAR);
                             if ((strArray.Length > 0) && (strArray[0].Length > 0))
                             {
+                                Dictionary<string, NetworkLookup> network = LookUpNetworkFolders(strArray);
                                 foreach (string str2 in strArray.Where(str2 => str2.Length > 0
                                         && tabControl1.TabPages.All(item3 => item3.CurrentPath != str2)))
                                 {
@@ -6572,16 +6585,9 @@ namespace QTTabBarLib {
                                     }
                                     else
                                     {
-                                        using (IDLWrapper wrapper2 = new IDLWrapper(str2))
-                                            {
-                                                if (wrapper2.Available)
-                                                {
-                                                   // Only restore locked ones, indiff
-                                                    QTabItem item4 = CreateNewTab(wrapper2);
-                                                    item4.TabLocked = true;
-                                                }
-                                            }
-                                         // end of using 
+                                        // Only restore locked ones, indiff
+                                        QTabItem item4 = CreateStartupTab(str2, network);
+                                        if (item4 != null) item4.TabLocked = true;
                                     }
                                 }
                                 fNowRestoring = true;
@@ -6594,19 +6600,16 @@ namespace QTTabBarLib {
                         if(key != null) {
                             string[] strArray = ((string)key.GetValue("TabsOnLastClosedWindow", string.Empty)).Split(QTUtility.SEPARATOR_CHAR);
                             if((strArray.Length > 0) && (strArray[0].Length > 0)) {
+                                Dictionary<string, NetworkLookup> network = LookUpNetworkFolders(strArray);
                                 foreach(string str2 in strArray.Where(str2 => str2.Length > 0
                                         && tabControl1.TabPages.All(item3 => item3.CurrentPath != str2))) {
                                     if(str2 == openingPath) {
                                         tabControl1.TabPages.Relocate(0, tabControl1.TabCount - 1);
                                     }
                                     else {
-                                        using(IDLWrapper wrapper2 = new IDLWrapper(str2)) {
-                                            if(wrapper2.Available) {
-                                                QTabItem item4 = CreateNewTab(wrapper2);
-                                                if(StaticReg.LockedTabsToRestoreList.Contains(str2)) {
-                                                    item4.TabLocked = true;
-                                                }
-                                            }
+                                        QTabItem item4 = CreateStartupTab(str2, network);
+                                        if(item4 != null && StaticReg.LockedTabsToRestoreList.Contains(str2)) {
+                                            item4.TabLocked = true;
                                         }
                                     }
                                 }
@@ -6618,6 +6621,68 @@ namespace QTTabBarLib {
             }
             finally {
                 Config.Tabs.NewTabPosition = num;
+            }
+        }
+
+        // ---------------------------------------------------------------- start-up tabs on the network
+
+        // How long a new window waits for the network folders among its start-up tabs, all of them
+        // together. Each one is looked up on a thread of its own: one whose server does not answer
+        // would otherwise hold the window for its whole timeout (some 5 s each, one after another).
+        private const int StartupNetworkWaitMs = 1500;
+
+        private sealed class NetworkLookup {
+            public byte[] Idl;
+            public volatile bool Done;
+        }
+
+        private static Dictionary<string, NetworkLookup> LookUpNetworkFolders(IEnumerable<string> paths) {
+            Dictionary<string, NetworkLookup> lookups = new Dictionary<string, NetworkLookup>(StringComparer.OrdinalIgnoreCase);
+            List<Thread> threads = new List<Thread>();
+            foreach(string path in paths) {
+                if(string.IsNullOrEmpty(path) || lookups.ContainsKey(path) || !QTUtility2.IsNetworkPath(path)) continue;
+                NetworkLookup lookup = new NetworkLookup();
+                lookups[path] = lookup;
+                string p = path;
+                Thread thread = new Thread(() => {
+                    try {
+                        lookup.Idl = ShellMethods.GetIDLData(p);
+                    }
+                    catch {
+                    }
+                    lookup.Done = true;
+                }) { IsBackground = true };
+                thread.SetApartmentState(ApartmentState.STA);
+                thread.Start();
+                threads.Add(thread);
+            }
+            Stopwatch wait = Stopwatch.StartNew();
+            foreach(Thread thread in threads) {
+                int left = StartupNetworkWaitMs - (int)wait.ElapsedMilliseconds;
+                if(left <= 0 || !thread.Join(left)) break;
+            }
+            return lookups;
+        }
+
+        // A start-up tab, or null when its folder is gone. A network folder that did not answer in
+        // time is opened unresolved and looked up when the tab is shown.
+        private QTabItem CreateStartupTab(string path, Dictionary<string, NetworkLookup> network) {
+            NetworkLookup lookup;
+            if(network.TryGetValue(path, out lookup)) {
+                if(!lookup.Done) {
+                    QTabItem tab = new QTabItem(QTUtility2.MakePathDisplayText(path, false), string.Empty, tabControl1);
+                    tab.SetUnresolvedLocation(path);
+                    tab.ToolTipText = QTUtility2.MakePathDisplayText(path, true);
+                    AddInsertTab(tab);
+                    return tab;
+                }
+                if(lookup.Idl == null) return null;
+                using(IDLWrapper wrapper = new IDLWrapper(lookup.Idl, false)) {
+                    return wrapper.Available ? CreateNewTab(wrapper) : null;
+                }
+            }
+            using(IDLWrapper wrapper = new IDLWrapper(path)) {
+                return wrapper.Available ? CreateNewTab(wrapper) : null;
             }
         }
         
