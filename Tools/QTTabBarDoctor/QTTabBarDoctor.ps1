@@ -20,14 +20,26 @@
     -Action Repair   (run from a NORMAL PowerShell; asks for admin rights for the install step)
         Closes the folder windows (QTTabBar keeps their tabs for the next window) and ends every
         Explorer process, removes every QTTabBar installation (MSI products and Setup.exe
-        bundles), installs -Msi (default: the newest build of this repository), checks that the
-        DLL in the GAC is that build's, and starts a fresh Explorer. QTTabBar's settings (HKCU)
-        are kept.
+        bundles), installs -Msi (default: the newest build of this repository, or the MSI of the
+        kit this script came with), checks that the DLL in the GAC is that build's, and starts a
+        fresh Explorer. QTTabBar's settings (HKCU) are kept.
         Use -WhatIf to see the plan only.
+
+    -Action ExportSettings   (read-only, no admin)
+        Saves QTTabBar's settings (HKCU\Software\QTTabBar: options, groups, applications, the last
+        session) to -SettingsFile (default: Desktop\QTTabBar-settings-<PC>-<time>.reg).
+
+    -Action ImportSettings   (no admin)
+        Imports -SettingsFile, made by ExportSettings, with Explorer closed (a running QTTabBar
+        keeps its settings in memory and would write them back), after backing up the current
+        settings to %TEMP%. Only files that write nothing but HKCU\Software\QTTabBar are taken.
 
     Installing over a running Explorer can leave the previous QTTabBar.dll in the GAC: Explorer
     keeps it open, the new package finds an assembly of the same version already there and
     skips it, and Windows reports success. Status detects that; Repair fixes it.
+
+    Kit layout (Tools\Kit\New-QTTabBarKit.ps1): <kit>\QTTabBar Setup *.msi, <kit>\QTTabBar.dll.sha256
+    (the hash of the DLL inside the MSI) and this script in <kit>\tools.
 
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\QTTabBarDoctor.ps1
@@ -35,13 +47,18 @@
     powershell -ExecutionPolicy Bypass -File .\QTTabBarDoctor.ps1 -Action Watch -Seconds 60
 .EXAMPLE
     powershell -ExecutionPolicy Bypass -File .\QTTabBarDoctor.ps1 -Action Repair
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File .\QTTabBarDoctor.ps1 -Action ImportSettings -SettingsFile ..\settings\QTTabBar-settings.reg
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
-    [ValidateSet('Status', 'Watch', 'Repair', 'RepairInstall')]
+    [ValidateSet('Status', 'Watch', 'Repair', 'RepairInstall', 'ExportSettings', 'ImportSettings')]
     [string]$Action = 'Status',
-    # Repair: the MSI to install. Default: the newest "QTTabBar Setup *.msi" built in this repository.
+    # Repair: the MSI to install. Default: the newest "QTTabBar Setup *.msi" built in this
+    # repository, else the one in the kit this script came with.
     [string]$Msi,
+    # ExportSettings / ImportSettings: the .reg file.
+    [string]$SettingsFile,
     # Watch: how long to watch.
     [int]$Seconds = 30,
     # Status: where the report is saved. Default: Desktop\QTTabBarDoctor-<time>.txt
@@ -57,6 +74,10 @@ $GacDir      = Join-Path $env:SystemRoot 'Microsoft.NET\assembly\GAC_MSIL\QTTabB
 $RepoRoot    = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $BuildDll    = Join-Path $RepoRoot 'QTTabBar\bin\Release\QTTabBar.dll'
 $BuildMsiDir = Join-Path $RepoRoot 'Installer\bin\Release\en-US'
+# Run from a kit (<kit>\tools\QTTabBarDoctor.ps1): the MSI is in the kit's folder, next to the
+# hash of the DLL inside it.
+$KitRoot     = Split-Path $PSScriptRoot -Parent
+$KitDllHash  = Join-Path $KitRoot 'QTTabBar.dll.sha256'
 
 # Explorer's native tabs (ViVeTool's well-known trio) and the classic-toolbar bundles
 # (Tools\Win11ToolbarFix).
@@ -157,11 +178,27 @@ function Format-Feature([int]$q) {
 function Get-FileSha([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
 
 function Get-NewestMsi {
-    if (-not (Test-Path $BuildMsiDir)) { return $null }
-    Get-ChildItem -LiteralPath $BuildMsiDir -Filter 'QTTabBar Setup *.msi' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+    foreach ($dir in $BuildMsiDir, $KitRoot) {
+        if (-not (Test-Path $dir)) { continue }
+        $m = Get-ChildItem -LiteralPath $dir -Filter 'QTTabBar Setup *.msi' -File | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($m) { return $m }
+    }
+    return $null
 }
 
-# -Msi, or the newest MSI built in this repository.
+# The QTTabBar.dll the newest MSI installs: this repository's build, or the one a kit records.
+function Get-ExpectedDll {
+    if (Test-Path $BuildDll) {
+        return [pscustomobject]@{ Hash = (Get-FileSha $BuildDll); Label = "this repository's build" }
+    }
+    if (Test-Path $KitDllHash) {
+        $hash = ((Get-Content -LiteralPath $KitDllHash -TotalCount 1) -split '\s+')[0].ToUpperInvariant()
+        return [pscustomobject]@{ Hash = $hash; Label = "this kit's build" }
+    }
+    return $null
+}
+
+# -Msi, or the newest MSI built in this repository (or in the kit).
 function Resolve-Msi {
     $path = $Msi
     if (-not $path) { $m = Get-NewestMsi; if ($m) { $path = $m.FullName } }
@@ -262,20 +299,19 @@ function Show-Status {
         Say '  GAC  QTTabBar.dll  missing'
     }
     $msiFile = Get-NewestMsi
-    if (Test-Path $BuildDll) {
-        $buildHash = Get-FileSha $BuildDll
-        $b = Get-Item $BuildDll
-        Say ("  this repo's build {0:yyyy-MM-dd HH:mm:ss}  {1} bytes  SHA256 {2}" -f $b.LastWriteTime, $b.Length, $buildHash.Substring(0, 16))
-        if ($msiFile) { Say ("  this repo's MSI   {0:yyyy-MM-dd HH:mm:ss}  {1}" -f $msiFile.LastWriteTime, $msiFile.Name) }
-        if ($gac -and $gacHash -eq $buildHash) {
-            Say '  -> the GAC holds this repository''s latest build.'
+    $expected = Get-ExpectedDll
+    if ($expected) {
+        Say ("  {0}  SHA256 {1}" -f $expected.Label, $expected.Hash.Substring(0, 16))
+        if ($msiFile) { Say ("  its MSI {0:yyyy-MM-dd HH:mm:ss}  {1}" -f $msiFile.LastWriteTime, $msiFile.FullName) }
+        if ($gac -and $gacHash -eq $expected.Hash) {
+            Say "  -> the GAC holds $($expected.Label)."
         } elseif ($gac) {
-            Say '  -> the GAC does NOT hold this repository''s latest build.'
-            $fromRepo = @($products | Where-Object { $_.Source -and $BuildMsiDir.StartsWith($_.Source.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase) })
-            if ($fromRepo.Count -gt 0 -and $msiFile -and $gac.LastWriteTime -lt $msiFile.LastWriteTime) {
-                $warn.Add('The MSI from this repository is installed, but the GAC still has an older QTTabBar.dll (it was in use during the install). Run -Action Repair.')
+            Say "  -> the GAC does NOT hold $($expected.Label)."
+            $fromIt = @($products | Where-Object { $_.Source -and $msiFile -and $msiFile.DirectoryName.StartsWith($_.Source.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase) })
+            if ($fromIt.Count -gt 0 -and $gac.LastWriteTime -lt $msiFile.LastWriteTime) {
+                $warn.Add('That MSI is installed, but the GAC still has an older QTTabBar.dll (it was in use during the install). Run -Action Repair.')
             } else {
-                $warn.Add('The installed QTTabBar.dll is not this repository''s latest build. Install the new MSI with -Action Repair.')
+                $warn.Add("The installed QTTabBar.dll is not $($expected.Label). Install its MSI with -Action Repair.")
             }
         }
     }
@@ -511,10 +547,11 @@ function Invoke-RepairInstall {
             $log.Add('QTTabBar.dll is not in the GAC after the install')
         } else {
             $log.Add(("GAC QTTabBar.dll now {0:yyyy-MM-dd HH:mm:ss}, {1} bytes" -f $gac.LastWriteTime, $gac.Length))
-            $buildMsi = Get-NewestMsi
-            if ((Test-Path $BuildDll) -and $buildMsi -and $Msi -eq $buildMsi.FullName) {
-                $same = (Get-FileSha $gac.FullName) -eq (Get-FileSha $BuildDll)
-                $log.Add($(if ($same) { 'matches this repository''s build' } else { 'does NOT match this repository''s build' }))
+            $newest = Get-NewestMsi
+            $expected = Get-ExpectedDll
+            if ($expected -and $newest -and $Msi -eq $newest.FullName) {
+                $same = (Get-FileSha $gac.FullName) -eq $expected.Hash
+                $log.Add($(if ($same) { "matches $($expected.Label)" } else { "does NOT match $($expected.Label)" }))
                 $ok = $same -and ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
             } else {
                 $ok = ($p.ExitCode -eq 0 -or $p.ExitCode -eq 3010)
@@ -528,6 +565,62 @@ function Invoke-RepairInstall {
     if (-not $ok) { exit 1 }
 }
 
+# ---------------------------------------------------------------- Settings
+
+# reg.exe reports success on stderr ("The operation completed successfully."), which Windows
+# PowerShell turns into an error under -ErrorAction Stop: only the exit code counts.
+function Invoke-Reg([string[]]$Arguments) {
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & reg.exe @Arguments 2>&1 | Out-Null
+        return $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+}
+
+function Invoke-ExportSettings {
+    if (-not (Test-Path 'HKCU:\Software\QTTabBar')) { throw 'There are no QTTabBar settings on this PC (HKCU\Software\QTTabBar).' }
+    $file = $SettingsFile
+    if (-not $file) {
+        $file = Join-Path ([Environment]::GetFolderPath('Desktop')) ("QTTabBar-settings-{0}-{1:yyyyMMdd-HHmmss}.reg" -f $env:COMPUTERNAME, (Get-Date))
+    }
+    $exit = Invoke-Reg @('export', 'HKCU\Software\QTTabBar', $file, '/y')
+    if ($exit -ne 0) { throw "reg export failed (exit $exit)." }
+    Write-Host "Saved: $file"
+}
+
+function Invoke-ImportSettings {
+    if (-not $SettingsFile -or -not (Test-Path -LiteralPath $SettingsFile)) { throw 'Pass -SettingsFile <a .reg file made by -Action ExportSettings>.' }
+    $file = (Resolve-Path -LiteralPath $SettingsFile).Path
+    # A .reg file can write anywhere in the registry: take only QTTabBar's own key.
+    $keys = @([regex]::Matches((Get-Content -LiteralPath $file -Raw), '(?m)^\[-?([^\]\r\n]+)\]') | ForEach-Object { $_.Groups[1].Value })
+    if ($keys.Count -eq 0) { throw "$file holds no registry keys." }
+    $foreign = @($keys | Where-Object { $_ -notmatch '^HKEY_CURRENT_USER\\Software\\QTTabBar(\\|$)' })
+    if ($foreign.Count -gt 0) { throw "$file writes outside HKCU\Software\QTTabBar ($($foreign[0])); not imported." }
+
+    Write-Host 'Plan: close the folder windows, end Explorer, back up the current settings, import, start Explorer.'
+    if (-not $PSCmdlet.ShouldProcess($file, 'Import QTTabBar settings')) { return }
+    # A running QTTabBar keeps its settings in memory and writes them back (Options OK/Apply).
+    [void](Stop-Explorer)
+    try {
+        if (Test-Path 'HKCU:\Software\QTTabBar') {
+            $backup = Join-Path $env:TEMP ("QTTabBar-settings-before-import-{0:yyyyMMdd-HHmmss}.reg" -f (Get-Date))
+            $exit = Invoke-Reg @('export', 'HKCU\Software\QTTabBar', $backup, '/y')
+            if ($exit -ne 0) { throw "Backing up the current settings failed (reg export exit $exit); nothing imported." }
+            Write-Host "Previous settings saved to $backup"
+        }
+        $exit = Invoke-Reg @('import', $file)
+        if ($exit -ne 0) { throw "reg import failed (exit $exit)." }
+        Write-Host "Imported: $file"
+    } finally {
+        # The shell Windows restarted by itself ran during the import: start a fresh one.
+        [void](Stop-Explorer)
+        Start-Explorer
+    }
+}
+
 # Dot-sourcing (. .\QTTabBarDoctor.ps1) only loads the functions.
 if ($MyInvocation.InvocationName -ne '.') {
     switch ($Action) {
@@ -535,5 +628,7 @@ if ($MyInvocation.InvocationName -ne '.') {
         'Watch'         { Invoke-Watch }
         'Repair'        { Invoke-Repair }
         'RepairInstall' { Invoke-RepairInstall }
+        'ExportSettings' { Invoke-ExportSettings }
+        'ImportSettings' { Invoke-ImportSettings }
     }
 }
