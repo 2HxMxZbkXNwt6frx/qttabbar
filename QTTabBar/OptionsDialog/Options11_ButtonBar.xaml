@@ -58,12 +58,27 @@
             <Label
                 Content="{qt:Resx Key=Options_Page11_ButtonBar, Index=2}"
                 Style="{StaticResource SectionHeaderStyle}"/>
+            <!-- Icon size in px (QTButtonBar.MinIconSize..MaxIconSize); the label text is set in the constructor. -->
+            <StackPanel
+                Margin="13,1,0,3"
+                Orientation="Horizontal">
+                <Label x:Name="lblIconSize"
+                    Padding="0"
+                    VerticalAlignment="Center"/>
+                <qt:Spinner x:Name="spnIconSize"
+                    Margin="8,0,4,0"
+                    Min="8"
+                    Max="48"
+                    Value="{Binding Path=IconSize}"/>
+                <Label
+                    Content="px"
+                    Padding="0"
+                    VerticalAlignment="Center"/>
+            </StackPanel>
+            <!-- Follows the icon size (above 16 px): plugins and the previews below use the 24 px images. -->
             <CheckBox x:Name="chkLargeButtons"
-                Content="{qt:Resx Key=Options_Page11_ButtonBar, Index=3}"
-                Height="16"
-                HorizontalAlignment="Left"
                 IsChecked="{Binding Path=LargeButtons}"
-                Margin="13,1,0,1"/>
+                Visibility="Collapsed"/>
             <CheckBox x:Name="chkShowButtonLabels"
                 Content="{qt:Resx Key=Options_Page11_ButtonBar, Index=4}"
                 Height="16"

@@ -791,6 +791,9 @@ namespace QTTabBarLib {
             public bool LockDropDownButtons      { get; set; }
             public bool ShowButtonLabels         { get; set; }
             public string ImageStripPath         { get; set; }
+            // Button icon size in px (QTButtonBar.MinIconSize..MaxIconSize). LargeButtons follows it
+            // (IconSize > 16): plugins still choose between their 16 and 24 px images by it.
+            public int IconSize                  { get; set; }
 
             public _BBar() {
                 /* // the old
@@ -817,6 +820,7 @@ namespace QTTabBarLib {
                 LockDropDownButtons	=	true;  // Lock drop-down button menu order
                 ShowButtonLabels	=	true; // Whether to show button labels
                 ImageStripPath	=	"";  // Custom image path
+                IconSize = 24;
             }
         }
 
@@ -1281,8 +1285,16 @@ namespace QTTabBarLib {
                     // todo: check dimensions
                     if(!wrapper.Available) Config.BBar.ImageStripPath = "";
                 }
-                Config.CmdBars.SecondBarIconSize = QTUtility.ValidateMinMax(Config.CmdBars.SecondBarIconSize, 16, 256);
-                Config.CmdBars.VerticalBarIconSize = QTUtility.ValidateMinMax(Config.CmdBars.VerticalBarIconSize, 16, 256);
+                // Settings from before BBar\IconSize keep the size LargeButtons gave them.
+                using(RegistryKey key = Registry.CurrentUser.OpenSubKey(RegPath + "BBar")) {
+                    if(key == null || key.GetValue("IconSize") == null) {
+                        Config.BBar.IconSize = Config.BBar.LargeButtons ? 24 : 16;
+                    }
+                }
+                Config.BBar.IconSize = QTUtility.ValidateMinMax(Config.BBar.IconSize, QTButtonBar.MinIconSize, QTButtonBar.MaxIconSize);
+                Config.BBar.LargeButtons = Config.BBar.IconSize > 16;
+                Config.CmdBars.SecondBarIconSize = QTUtility.ValidateMinMax(Config.CmdBars.SecondBarIconSize, CommandBarBand.MinIconSize, CommandBarBand.MaxIconSize);
+                Config.CmdBars.VerticalBarIconSize = QTUtility.ValidateMinMax(Config.CmdBars.VerticalBarIconSize, CommandBarBand.MinIconSize, CommandBarBand.MaxIconSize);
                 Config.CmdBars.SecondBarItems = (Config.CmdBars.SecondBarItems ?? new CommandBarItem[0]).Where(i => i != null).ToArray();
                 Config.CmdBars.VerticalBarItems = (Config.CmdBars.VerticalBarItems ?? new CommandBarItem[0]).Where(i => i != null).ToArray();
                 if(Config.CmdBars.ClickActions == null || Config.CmdBars.ClickActions.Length != 8) {

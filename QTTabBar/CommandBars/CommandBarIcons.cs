@@ -23,7 +23,7 @@ using System.Runtime.InteropServices;
 
 namespace QTTabBarLib {
 
-    // Icons for command bar buttons at any size (16-64 px), with transparency. The bitmaps are
+    // Icons for command bar buttons at any size (8-256 px), with transparency. The bitmaps are
     // created per call, so each window's bar owns its own (GDI+ objects aren't thread-safe).
     internal static class CommandBarIcons {
         [ComImport, Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -175,14 +175,21 @@ namespace QTTabBarLib {
             return false;
         }
 
-        private static Bitmap Fit(Bitmap bmp, int size) {
+        // Scales bmp (which it disposes) to fit a size x size square. Also used for the standard
+        // button bar's icons at sizes other than 16 and 24.
+        internal static Bitmap Fit(Bitmap bmp, int size) {
             if(bmp == null || (bmp.Width == size && bmp.Height == size)) return bmp;
             Bitmap fitted = new Bitmap(size, size, PixelFormat.Format32bppArgb);
-            using(Graphics g = Graphics.FromImage(fitted)) {
+            using(Graphics g = Graphics.FromImage(fitted))
+            using(ImageAttributes edges = new ImageAttributes()) {
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+                // Without this the filter reads past the edge and small icons get a faint frame.
+                edges.SetWrapMode(WrapMode.TileFlipXY);
                 float scale = Math.Min((float)size / bmp.Width, (float)size / bmp.Height);
-                float w = bmp.Width * scale, h = bmp.Height * scale;
-                g.DrawImage(bmp, (size - w) / 2, (size - h) / 2, w, h);
+                int w = Math.Max(1, (int)Math.Round(bmp.Width * scale)), h = Math.Max(1, (int)Math.Round(bmp.Height * scale));
+                Rectangle dest = new Rectangle((size - w) / 2, (size - h) / 2, w, h);
+                g.DrawImage(bmp, dest, 0, 0, bmp.Width, bmp.Height, GraphicsUnit.Pixel, edges);
             }
             bmp.Dispose();
             return fitted;

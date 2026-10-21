@@ -50,6 +50,10 @@ namespace QTTabBarLib {
         private const int ActCopyPath = 14;
         private const int ActEdit = 15;
 
+        // Icon sizes the bars accept (Config.CmdBars.*IconSize).
+        internal const int MinIconSize = 8;
+        internal const int MaxIconSize = 256;
+
         private readonly BarToolStrip toolStrip;
 
         // ToolStrip raises MouseDown / Move / Up only outside its items; reordering needs them all.
@@ -1092,7 +1096,7 @@ namespace QTTabBarLib {
             labels.Click += (s, a) => Save(() => ShowLabels = !ShowLabels);
             barMenu.Items.Add(labels);
             ToolStripMenuItem sizes = new ToolStripMenuItem(Text_IconSize);
-            List<int> choices = new List<int> { 16, 24, 32, 48, 64, 96 };
+            List<int> choices = new List<int> { 12, 16, 20, 24, 32, 48, 64, 96 };
             if(!choices.Contains(IconSize)) {
                 choices.Add(IconSize);
                 choices.Sort();
@@ -1103,6 +1107,8 @@ namespace QTTabBarLib {
                 entry.Click += (s, a) => Save(() => IconSize = value);
                 sizes.DropDownItems.Add(entry);
             }
+            sizes.DropDownItems.Add(new ToolStripSeparator());
+            sizes.DropDownItems.Add(Text_IconSizeOther, null, (s, a) => AskIconSize());
             barMenu.Items.Add(sizes);
             e.Cancel = false;
         }
@@ -1196,6 +1202,11 @@ namespace QTTabBarLib {
             }
         }
 
+        private void AskIconSize() {
+            int size = IconSizeForm.Ask(this, IconSize, MinIconSize, MaxIconSize);
+            if(size > 0 && size != IconSize) Save(() => IconSize = size);
+        }
+
         private void Insert(int index, CommandBarItem item) {
             Save(() => {
                 List<CommandBarItem> list = (Items ?? new CommandBarItem[0]).ToList();
@@ -1267,5 +1278,6 @@ namespace QTTabBarLib {
         private static string Text_AddMenu { get { return Japanese ? "メニューボタンを追加" : "Add menu button"; } }
         private static string Text_ShowLabels { get { return Japanese ? "ラベルを表示" : "Show labels"; } }
         private static string Text_IconSize { get { return Japanese ? "アイコンサイズ" : "Icon size"; } }
+        private static string Text_IconSizeOther { get { return Japanese ? "その他のサイズ..." : "Other size..."; } }
     }
 }

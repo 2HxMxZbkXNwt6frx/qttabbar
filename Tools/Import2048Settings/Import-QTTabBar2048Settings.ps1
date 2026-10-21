@@ -15,7 +15,7 @@
       - keyboard shortcuts (Keys\Shortcuts, Keys\UseTabSwitcher)
       - option toggles and enums (Window, Tabs, Tweaks, Tips, Misc, Skin, BBar, Desktop)
       - tab metrics, colours, fonts, tab skin image path
-      - the first command bar (BBar\ButtonIndexes, LargeButtons, ShowButtonLabels)
+      - the first command bar (BBar\ButtonIndexes, IconSize, LargeButtons, ShowButtonLabels)
       - the second and vertical command bars (CmdBars\SecondBarItems, VerticalBarItems, icon sizes,
         labels, VerticalBarVisible) and the command button click / middle-click events
         (CmdBars\ClickActions, MiddleClickActions): folder, file/program and group buttons,
@@ -267,8 +267,9 @@ $script:Clamps = @{
     'Desktop.SecondItem'     = @(0, 3)
     'Desktop.ThirdItem'      = @(0, 3)
     'Desktop.FourthItem'     = @(0, 3)
-    'CmdBars.SecondBarIconSize'   = @(16, 256)
-    'CmdBars.VerticalBarIconSize' = @(16, 256)
+    'BBar.IconSize'               = @(8, 48)
+    'CmdBars.SecondBarIconSize'   = @(8, 256)
+    'CmdBars.VerticalBarIconSize' = @(8, 256)
 }
 
 # The fork's default font name is "Microsoft YaHei" written with CJK characters (kept ASCII here).
@@ -300,7 +301,7 @@ $script:ForkDefaults = @{
     'Skin.RebarStretchMode' = 'Tile'; 'Skin.RebarImageFile' = ''; 'Skin.RebarImageSeperateBars' = '0'; 'Skin.ActiveTabInBold' = '1'
     'Skin.SkinAutoColorChangeClose' = '0'; 'Skin.DrawHorizontalExplorerBarBgColor' = '0'; 'Skin.DrawVerticalExplorerBarBgColor' = '0'
     'BBar.ButtonIndexes' = '[3,4,5,6,7,17,11,12,14,15,13,21,9,19,10]'; 'BBar.LargeButtons' = '1'; 'BBar.LockDropDownButtons' = '1'
-    'BBar.ShowButtonLabels' = '1'; 'BBar.ImageStripPath' = ''
+    'BBar.ShowButtonLabels' = '1'; 'BBar.ImageStripPath' = ''; 'BBar.IconSize' = '24'
     'CmdBars.SecondBarItems' = ''; 'CmdBars.VerticalBarItems' = ''; 'CmdBars.SecondBarIconSize' = '32'; 'CmdBars.VerticalBarIconSize' = '48'
     'CmdBars.SecondBarShowLabels' = '0'; 'CmdBars.VerticalBarShowLabels' = '0'; 'CmdBars.VerticalBarVisible' = '0'
     'CmdBars.ClickActions' = '[0,12,1,-1,5,-1,-1,-1]'; 'CmdBars.MiddleClickActions' = '[15,-1,-1,-1,13,-1,-1,-1]'
@@ -1069,7 +1070,11 @@ function Add-ButtonBarWrites($Plan) {
     $size = 0
     $info.IconSize = $bar.IconSize
     if ([int]::TryParse([string]$bar.IconSize, [ref]$size) -and $size -gt 0) {
-        Add-Write $Plan 'BBar' 'LargeButtons' ([int]($size -ge 24)) "CommandBarIconSize1st/IconSize=$size" 'fork: small = 16 px, large = 24 px'
+        Add-Write $Plan 'BBar' 'IconSize' $size "CommandBarIconSize1st/IconSize=$size"
+        # LargeButtons follows IconSize in the fork: the 24 px images are used above 16 px.
+        $range = $script:Clamps['BBar.IconSize']
+        $fitted = [Math]::Min([Math]::Max($size, $range[0]), $range[1])
+        Add-Write $Plan 'BBar' 'LargeButtons' ([int]($fitted -gt 16)) "CommandBarIconSize1st/IconSize=$size" 'fork: follows IconSize (24 px images above 16 px)'
     }
     [void](Get-Scalar $Plan 'CommandBarIconSize1st')
     foreach ($k in @($Plan.B2.Bars.get_Keys())) {
@@ -2287,7 +2292,7 @@ function Invoke-SelfTest {
         'Skin.TabTextActiveColor' = (New-ColorJson -1)
         'Skin.TabTextFont' = (New-FontJson 'Segoe UI' 9 0); 'Skin.TabSizeMargin' = (New-PaddingJson 1 2 3 4)
         'Keys.UseTabSwitcher' = 0; 'Misc.AutoUpdate' = 0; 'Misc.TabHistoryCount' = 128; 'Tips.PreviewMaxWidth' = 1920
-        'Tweaks.ToggleFullRowSelect' = 0; 'BBar.ShowButtonLabels' = 0; 'BBar.LargeButtons' = 0; 'BBar.ButtonIndexes' = '[3,20,21]'
+        'Tweaks.ToggleFullRowSelect' = 0; 'BBar.ShowButtonLabels' = 0; 'BBar.LargeButtons' = 0; 'BBar.IconSize' = 16; 'BBar.ButtonIndexes' = '[3,20,21]'
         'Desktop.FirstItem' = 0; 'Desktop.SecondItem' = 1; 'Desktop.ThirdItem' = 3; 'Desktop.FourthItem' = 2; 'Desktop.IncludeGroup' = 1
     }
     foreach ($k in $exp.get_Keys()) {

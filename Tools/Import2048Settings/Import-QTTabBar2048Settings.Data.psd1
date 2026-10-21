@@ -336,7 +336,7 @@
         )
         BBar = @(
             'ButtonIndexes:int[]', 'ActivePluginIDs:string[]', 'LargeButtons:bool', 'LockSearchBarWidth:bool',
-            'LockDropDownButtons:bool', 'ShowButtonLabels:bool', 'ImageStripPath:string'
+            'LockDropDownButtons:bool', 'ShowButtonLabels:bool', 'ImageStripPath:string', 'IconSize:int'
         )
         CmdBars = @(
             'SecondBarItems:CommandBarItem[]', 'SecondBarIconSize:int', 'SecondBarShowLabels:bool', 'VerticalBarItems:CommandBarItem[]',

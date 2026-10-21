@@ -174,9 +174,41 @@ namespace QTTabBarLib {
             }
         }
 
+        // Config.BBar.IconSize limits.
+        internal const int MinIconSize = 8;
+        internal const int MaxIconSize = 48;
+
+        private static int IconSize {
+            get { return QTUtility.ValidateMinMax(Config.BBar.IconSize, MinIconSize, MaxIconSize); }
+        }
+
+        // The image strips (and plugins) have 16 and 24 px icons: above 16 the 24 px ones are
+        // scaled, up to 16 the 16 px ones.
+        private static bool LargeIcons {
+            get { return IconSize > 16; }
+        }
+
         private static int BarHeight {
             // get { return Config.BBar.LargeButtons ? BARHEIGHT_LARGE : BARHEIGHT_SMALL; }
-            get { return Config.BBar.LargeButtons ? BARHEIGHT_LARGE_LARGE : BARHEIGHT_LARGE_SMALL; }
+            // BARHEIGHT_LARGE_SMALL for 16 px icons, BARHEIGHT_LARGE_LARGE for 24, less for smaller.
+            get { return IconSize + 20 + Math.Max(0, Math.Min(4, (IconSize - 16) / 2)); }
+        }
+
+        // A strip icon (button index) at the bar's icon size.
+        private static Image StripImage(int index) {
+            Bitmap image;
+            lock(imgLock2) {
+                image = (LargeIcons ? imageStrip_Large[index - 1] : imageStrip_Small[index - 1])
+                        .Clone(new Rectangle(Point.Empty, LargeIcons ? sizeLargeButton : sizeSmallButton), PixelFormat.Format32bppArgb);
+            }
+            return CommandBarIcons.Fit(image, IconSize);
+        }
+
+        // A plugin's 16 or 24 px button image at the bar's icon size (the plugin's own image is
+        // left alone: it may keep it).
+        private static Image PluginImage(Image image) {
+            if(image == null || (image.Width == IconSize && image.Height == IconSize)) return image;
+            return CommandBarIcons.Fit(new Bitmap(image), IconSize);
         }
 
         private void CallBackSearchBox() {
@@ -371,7 +403,7 @@ namespace QTTabBarLib {
             ClearToolStripItems();
             toolStrip.ShowItemToolTips = true;
             // Set the button height
-            Height = Config.BBar.LargeButtons ? BARHEIGHT_LARGE_LARGE : BARHEIGHT_LARGE_SMALL;
+            Height = BarHeight;
             // Whether to show button labels
             bool showButtonLabels = Config.BBar.ShowButtonLabels;
             UnloadPluginsOnCreation();
@@ -444,7 +476,7 @@ namespace QTTabBarLib {
 
                     case BII_FILTERBAR: // Search box
                         searchBox = new ToolStripSearchBox(
-                                Config.BBar.LargeButtons, 
+                                LargeIcons,
                                 Config.BBar.LockSearchBarWidth,
                                 ButtonItemsDisplayName[0x12], 
                                 SearchBoxWidth) {
@@ -503,14 +535,8 @@ namespace QTTabBarLib {
                    at QTTabBarLib.QTButtonBar.CreateItems()
                    at QTTabBarLib.QTTabBarClass.RefreshOptions()
                  */
-                lock (imgLock2) // by indiff
-                {
-                    item.Image =
-                        (Config.BBar.LargeButtons ? imageStrip_Large[index - 1] : imageStrip_Small[index - 1])
-                         .Clone(
-                            new Rectangle(Point.Empty, Config.BBar.LargeButtons ? sizeLargeButton : sizeSmallButton), PixelFormat.Format32bppArgb);
-                }
-               
+                item.Image = StripImage(index);   // locks imgLock2 (by indiff)
+
 
                 item.Tag = index;
                 toolStrip.Items.Add(item);
@@ -562,12 +588,12 @@ namespace QTTabBarLib {
                     if(instance.IsSplitButton) {
                         itemToAdd = new ToolStripSplitButton(instance.Text) {
                                 ImageScaling = ToolStripItemImageScaling.None,
-                                DropDownButtonWidth = Config.BBar.LargeButtons ? 14 : 11,
+                                DropDownButtonWidth = LargeIcons ? 14 : 11,
                                 DisplayStyle = showText
                                         ? ToolStripItemDisplayStyle.ImageAndText
                                         : ToolStripItemDisplayStyle.Image,
                                 ToolTipText = instance.Text,
-                                Image = instance.GetImage(Config.BBar.LargeButtons)
+                                Image = PluginImage(instance.GetImage(LargeIcons))
                         };
 
                         
@@ -587,7 +613,7 @@ namespace QTTabBarLib {
                                         ? ToolStripItemDisplayStyle.ImageAndText
                                         : ToolStripItemDisplayStyle.Image,
                                 ToolTipText = instance.Text,
-                                Image = instance.GetImage(Config.BBar.LargeButtons)
+                                Image = PluginImage(instance.GetImage(LargeIcons))
                         };
                         DropDownMenuReorderable reorder = new DropDownMenuReorderable(components);
                         reorder.ItemClicked += pluginDropDown_ItemClicked;
@@ -605,14 +631,14 @@ namespace QTTabBarLib {
                                     ? ToolStripItemDisplayStyle.ImageAndText
                                     : ToolStripItemDisplayStyle.Image,
                             ToolTipText = instance.Text,
-                            Image = instance.GetImage(Config.BBar.LargeButtons)
+                            Image = PluginImage(instance.GetImage(LargeIcons))
                     };
                     itemToAdd.Click += pluginButton_ButtonClick;
                 }
                 else if(plugin.Instance is IBarCustomItem) {
                     IBarCustomItem instance = (IBarCustomItem)plugin.Instance;
                     DisplayStyle displayStyle = showText ? DisplayStyle.ShowTextLabel : DisplayStyle.NoLabel;
-                    itemToAdd = instance.CreateItem(Config.BBar.LargeButtons, displayStyle);
+                    itemToAdd = instance.CreateItem(LargeIcons, displayStyle);
                     if(itemToAdd != null) {
                         itemToAdd.ImageScaling = ToolStripItemImageScaling.None;
                         lstPluginCustomItem.Add(itemToAdd);
@@ -626,7 +652,7 @@ namespace QTTabBarLib {
                         instance.Initialize(instance.Count.RangeSelect(i => i).ToArray());
                     }
                     DisplayStyle style = showText ? DisplayStyle.ShowTextLabel : DisplayStyle.NoLabel;
-                    itemToAdd = instance.CreateItem(Config.BBar.LargeButtons, style, buttonIndex.LoWord());
+                    itemToAdd = instance.CreateItem(LargeIcons, style, buttonIndex.LoWord());
                     if(itemToAdd != null) {
                         lstPluginCustomItem.Add(itemToAdd);
                     }
@@ -1866,7 +1892,7 @@ namespace QTTabBarLib {
             try {
                 item.ToolTipText = instance.Text;
                 if(fRefreshImage) {
-                    item.Image = instance.GetImage(Config.BBar.LargeButtons);
+                    item.Image = PluginImage(instance.GetImage(LargeIcons));
                 }
             }
             catch(Exception exception) {

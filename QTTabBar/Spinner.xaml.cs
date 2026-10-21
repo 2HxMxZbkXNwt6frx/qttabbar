@@ -50,12 +50,22 @@ namespace QTTabBarLib {
                 txtValue.Text = Max.ToString();
             }
             else if(i < Min) {
-                i = Min;
-                txtValue.Text = Min.ToString();
+                // Maybe the first digits of a bigger number ("1" of "12" with Min 8): left as typed
+                // until focus leaves (txtValue_LostFocus).
+                return;
             }
             // It seems the binding only refreshes when focus is lost,
             // so we need to set Value here as well.
             Value = i;
+        }
+
+        //# A number left below Min shows the value again.
+        private void txtValue_LostFocus(object sender, RoutedEventArgs e) {
+            int i;
+            if(!int.TryParse(txtValue.Text, out i) || i < Min) {
+                if(Value < Min) Value = Min;
+                txtValue.Text = Value.ToString();
+            }
         }
 
         //# Allow only digits to be entered.  We still need TextChanged to 

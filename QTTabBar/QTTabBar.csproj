@@ -131,6 +131,9 @@
     <Compile Include="CommandBars\CommandBarItemForm.cs">
       <SubType>Form</SubType>
     </Compile>
+    <Compile Include="CommandBars\IconSizeForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
     <Compile Include="CommandBars\QTCommandBars.cs">
       <SubType>UserControl</SubType>
     </Compile>

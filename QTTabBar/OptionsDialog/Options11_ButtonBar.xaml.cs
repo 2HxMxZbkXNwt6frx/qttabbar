@@ -39,6 +39,12 @@ namespace QTTabBarLib {
 
         public Options11_ButtonBar() {
             InitializeComponent();
+            lblIconSize.Content = QTUtility.IsJapanese
+                    ? string.Format("アイコンサイズ ({0}～{1}):", QTButtonBar.MinIconSize, QTButtonBar.MaxIconSize)
+                    : string.Format("Icon size ({0}-{1}):", QTButtonBar.MinIconSize, QTButtonBar.MaxIconSize);
+            // Keeps LargeButtons (the 16 or 24 px image set, also in the previews) in step with the size.
+            DependencyPropertyDescriptor.FromProperty(Spinner.ValueProperty, typeof(Spinner)).AddValueChanged(spnIconSize,
+                    (sender, e) => chkLargeButtons.IsChecked = spnIconSize.Value > 16);
         }
 
 
@@ -246,6 +252,8 @@ namespace QTTabBarLib {
                     return p + entry.Index;
                 }).ToArray();
                 WorkingConfig.bbar.ActivePluginIDs = activeIDs.ToArray();
+                WorkingConfig.bbar.IconSize = QTUtility.ValidateMinMax(WorkingConfig.bbar.IconSize, QTButtonBar.MinIconSize, QTButtonBar.MaxIconSize);
+                WorkingConfig.bbar.LargeButtons = WorkingConfig.bbar.IconSize > 16;
                 // TODO: Validate image strip
 
                 // MessageBox.Show("image:" + WorkingConfig.bbar.ImageStripPath);
