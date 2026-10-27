@@ -827,12 +827,17 @@ namespace QTTabBarLib {
         }
 
         private IntPtr CallbackMouseProc(int nCode, IntPtr wParam, IntPtr lParam) {
+            // The hook also runs when a message is only peeked at (HC_NOREMOVE, PeekMessage without
+            // PM_REMOVE), as often as Explorer looks - many times while it is busy navigating. Act
+            // once, when the message is taken (HC_ACTION): acting on every look ran one press of the
+            // back button as several GoBacks, and the tab's history no longer matched the folder.
+            const int HC_ACTION = 0;
             try {
                 if(nCode >= 0 && !NowModalDialogShown) {
                     IntPtr ptr = (IntPtr)1;
                     switch(((int)wParam)) {
                         case WM.MOUSEWHEEL:
-                            if(!HandleMOUSEWHEEL(lParam)) {
+                            if(nCode != HC_ACTION || !HandleMOUSEWHEEL(lParam)) {
                                 break;
                             }
                             return ptr;
@@ -872,7 +877,8 @@ namespace QTTabBarLib {
                             if(!Config.Mouse.GlobalMouseActions.TryGetValue(chord, out action)) {
                                 break;
                             }
-                            if(((int)wParam) == WM.XBUTTONUP && !Explorer.Busy) {
+                            // A peek is still swallowed (as before), so Explorer never sees the button.
+                            if(nCode == HC_ACTION && ((int)wParam) == WM.XBUTTONUP && !Explorer.Busy) {
                                 QTUtility2.log("QTTabBarClass WM.XBUTTONUP " + action);
                                 DoBindAction(action);
                             }
