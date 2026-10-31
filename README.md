@@ -1,3 +1,82 @@
+> **Unofficial fork.** This is a fork of [indiff/qttabbar](https://github.com/indiff/qttabbar) that brings the full tab bar back on Windows 11 26H2 and adds features from QTTabBar 2048 Beta2. It is not affiliated with or endorsed by Quizo, Paul Accisano, indiff or any other QTTabBar author, so please don't report problems with this fork upstream. Everything below [About this fork](#about-this-fork) is the upstream README: its links, badges and downloads point to upstream, not to this fork.
+
+## About this fork
+
+Tested on Windows 11 Pro 26H2, build 26300.9711. Other builds may behave differently.
+
+### What this fork changes
+
+- **Full tab bar on Windows 11.** Tab features depend on whether the tab bar is docked, not on the Windows version. Fixes for Explorer crashes with many windows, windows that stayed hidden, and middle clicks that closed a window.
+- **Second and vertical command bars** for folders, files, programs and groups, with child menus, drag and drop, and custom icons.
+- **Command bar icon sizes in pixels.** 8-48 px for the first bar (Options > Button Bar), 8-256 px for the other two (right-click the bar > Icon size).
+- **Mouse and keyboard.** 2048-style folder double-clicks, Select all and the shortcuts 2048 had. The mouse side buttons now act once per press, which keeps the back/forward history correct.
+- **History.** Up to 128 closed tabs and recent files.
+- **Tabs.** Long titles can scroll through the tab. Start-up tabs on network shares that don't answer no longer hold the window up.
+- **Button images.** Reads QTTabBar 1.x and 2048 image strips.
+- **Tools.** `QTTabBarDoctor` diagnoses an install, repairs it and exports or imports settings. `Win11ToolbarFix` restores the classic toolbar. `Import-QTTabBar2048Settings` converts 2048 settings. `Tools\Kit` packs an installer and guide for setting up another PC.
+
+### Install on Windows 11 26H2
+
+A step-by-step guide in Japanese is in [Tools/Kit/README-ja.md](Tools/Kit/README-ja.md).
+
+1. Uninstall any other version of QTTabBar. If you want to keep 2048 settings, export them first.
+2. In an elevated PowerShell, apply the toolbar fix, then restart Windows. Read [the section below](#before-you-run-win11toolbarfix) first.
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action InstallTask
+   ```
+
+3. In a normal PowerShell, install the MSI. Explorer closes and restarts, and there is one UAC prompt.
+
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.ps1 -Action Repair -Msi "C:\path\to\QTTabBar Setup 1.6.4.msi"
+   ```
+
+   Don't double-click the MSI: while Explorer has the old DLL loaded, the install can report success and leave the old build in place.
+
+4. Turn the bars on as described in [Getting the full tab bar back](#getting-the-full-tab-bar-back-on-windows-11-24h2--25h2--26h2).
+5. Run `QTTabBarDoctor.ps1` with no arguments. It should end with `Result: nothing wrong found.`
+
+### Before you run Win11ToolbarFix
+
+This script changes system-wide Windows settings. Use it at your own risk, and create a restore point first.
+
+- It needs administrator rights. It backs up, then deletes, the feature overrides that remove the classic toolbar (under `HKLM\SYSTEM\CurrentControlSet\Control\FeatureManagement\Overrides`), and writes "disabled" overrides in their place.
+- `-Action InstallTask` also copies the script to Program Files and registers a startup task that runs as SYSTEM, because a cumulative update can put the overrides back.
+- `-Action Restore` puts back what was backed up and removes the task. Restart Windows after either action.
+- Modes larger than the default `Minimal` disable more feature bundles. Disabling 57048216 has been reported to hide the Widgets button.
+- Microsoft doesn't support this, and a future Windows update may stop it working.
+
+### Moving settings from QTTabBar 2048 Beta2
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\Tools\Import2048Settings\Import-QTTabBar2048Settings.ps1 -XmlPath C:\path\to\export.xml
+```
+
+This shows what would be converted and what can't be. Add `-Apply` to write the settings, then sign out and back in before opening QTTabBar's options.
+
+QTTabBar 2048 is a separate closed-source program and isn't part of this project. The converter contains interoperability data needed to read your own settings export (setting names, value ranges, defaults and option labels). This fork contains no 2048 code, binaries or images.
+
+### Known limitations
+
+- The installer is unsigned, so Windows may show a SmartScreen warning.
+- Selecting a tab on a network share that doesn't answer still waits for the Windows timeout (about 5 seconds).
+- Text added by this fork is in English and Japanese only.
+
+### Building this fork
+
+```powershell
+.\Installer\Build-Installer.ps1 -Version 1.6.4
+```
+
+`-PlatformToolset` and `-WixDir` select a newer VC toolset and a portable WiX. See [Build](#build) below for the requirements.
+
+### License and credits
+
+GPL v3, see [LICENSE.txt](LICENSE.txt). There is no warranty. This fork is built on the work of Quizo, Paul Accisano, indiff and the other QTTabBar contributors. It modifies upstream commit `9b81f72`; the changes date from October 2026 and `git log 9b81f72..` lists them. MinHook and the Windows API Code Pack remain under their own licenses.
+
+---
+
 - [QTTabBar Document](https://www.yuque.com/indiff/qttabbar/zqtdig)
 - [汉化GitHub modify by indiff](https://openuserjs.org/scripts/indiff/GitHub_%E6%B1%89%E5%8C%96%E6%8F%92%E4%BB%B6_(indiff)%E4%BF%AE%E6%94%B9)
 - [Generate chm db document(Support Group By Module) modify by indiff](https://github.com/indiff/DBCHM)

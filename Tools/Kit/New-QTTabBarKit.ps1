@@ -22,7 +22,7 @@
     repository (refused when -IncludeSettings or -ExtraFiles is given).
 
 .EXAMPLE
-    .\Tools\Kit\New-QTTabBarKit.ps1 -IncludeSettings -ExtraFiles ..\user_settings\ExplorerPatcher_26100.8457.70.4.reg
+    .\Tools\Kit\New-QTTabBarKit.ps1 -IncludeSettings -ExtraFiles C:\path\to\ExplorerPatcher.reg
 #>
 param(
     # Default: a "dist" folder next to the repository.
