@@ -3,6 +3,7 @@
   <String Id="YOURLOCID">Переведенная строка</String>
   <String Id="READ_INFO">Пожалуйста, прочитайте следующую информацию.</String>
   <String Id="CLOSE_TABS">Закрыть все окна Проводника и переоткрыть их как вкладки</String>
+  <String Id="CLOSE_EXPLORER_NOTE">Setup closes all File Explorer windows while it installs, so finish any file copies first. Your tabs come back afterwards.</String>
   <String Id="COMPILE_IMG">Сборка платформоспецифичных образов</String>
   <String Id="GPL_FILE">GPL3.rtf</String>
   <String Id="STANDARD_BUTTONS">Обычные кнопки QTTab</String>

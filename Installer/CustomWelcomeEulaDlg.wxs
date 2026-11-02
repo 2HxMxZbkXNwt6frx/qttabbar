@@ -46,6 +46,7 @@
         <Control Id="LicenseText" Type="ScrollableText" X="130" Y="36" Width="226" Height="162" Sunken="yes" TabSkip="no">
           <Text SourceFile="!(loc.GPL_FILE)" />
         </Control>
+        <Control Id="CloseExplorerNote" Type="Text" X="130" Y="202" Width="226" Height="28" Transparent="yes" NoPrefix="yes" Text="!(loc.CLOSE_EXPLORER_NOTE)" />
       </Dialog>
     </UI>
     

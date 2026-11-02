@@ -45,17 +45,12 @@ powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix
 powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action Status
 ```
 
-## 3. QTTabBarを入れる（普通のPowerShellで）
+## 3. QTTabBarを入れる
 
-パスはダウンロードしたMSIの場所に合わせて変えてください。
+ダウンロードした `QTTabBar-Setup-1.6.4.msi` をダブルクリックして、画面の指示に従います。
 
-```
-powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.ps1 -Action Repair -Msi "C:\Users\<名前>\Downloads\QTTabBar-Setup-1.6.4.msi"
-```
-
-- 開いているエクスプローラーが一度閉じ、タスクバーが消えます。UACの確認が1回出るので「はい」を選びます。
-- 最後に `Repaired: ...` と出れば完了です。
-- MSIをダブルクリックして入れないでください。エクスプローラーが使用中だと、成功と表示されても古いDLLが残ることがあります。
+- 「Install」を押すとUACの確認が1回出るので「はい」を選びます。そのあと、開いているエクスプローラーのウィンドウがすべて閉じ、タスクバーが一度消えて戻ります。ファイルのコピー中なら、終わるのを待ってから進めてください。
+- 最後の画面ではチェックを入れたまま「Finish」を押します。エクスプローラーが再起動し、保存されたタブの入ったウィンドウが開きます。
 
 ## 4. バーを表示する
 
@@ -68,7 +63,7 @@ powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.p
 powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.ps1
 ```
 
-最後が `Result: nothing wrong found.` なら完了です（レポートはデスクトップにも保存されます）。`!` で始まる行が出たら、その内容に従ってください。多くは手順3のコマンドをもう一度実行すると直ります。
+最後が `Result: nothing wrong found.` なら完了です（レポートはデスクトップにも保存されます）。`!` で始まる行が出たら、その内容に従ってください。多くは「困ったとき」のRepairで直ります。
 
 ## 日本語で使う
 
@@ -84,14 +79,14 @@ powershell -ExecutionPolicy Bypass -File .\Tools\Import2048Settings\Import-QTTab
 
 ## 更新するとき
 
-新しいMSIをダウンロードして、手順3のコマンドを実行するだけです。設定はそのまま残ります。
+新しいMSIをダウンロードして、手順3と同じようにダブルクリックで入れるだけです。設定はそのまま残ります。
 
 ## 困ったとき
 
 | 症状 | すること |
 |---|---|
 | タブバーが出ない | 手順2のStatusが `OK` か確認し、再起動していなければ再起動します。そのあと手順4を確認します |
-| 動きがおかしい、更新したのに直らない | 手順5で状態を確認し、`!` の行に従います |
+| 動きがおかしい、更新したのに直らない | 手順5で状態を確認します。`!` の行が出たら、普通のPowerShellで `QTTabBarDoctor.ps1 -Action Repair -Msi "<MSIのパス>"` を実行します。エクスプローラーを閉じた状態でMSIを入れ直します |
 | 今の設定を保存したい | `QTTabBarDoctor.ps1 -Action ExportSettings`（デスクトップに .reg を保存） |
 | 保存した設定を戻したい | `QTTabBarDoctor.ps1 -Action ImportSettings -SettingsFile <.regのパス>` |
 | 旧ツールバーの修正を元に戻したい | 管理者として `Win11ToolbarFix.ps1 -Action Restore` を実行し、PCを再起動します |

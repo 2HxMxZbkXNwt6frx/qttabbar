@@ -3,6 +3,7 @@
 	<String Id="YOURLOCID">你的本地字符串</String>
   <String Id="READ_INFO">请阅读以下信息。</String>
   <String Id="CLOSE_TABS">关闭所有的资源管理器窗口并且重新打开</String>
+  <String Id="CLOSE_EXPLORER_NOTE">Setup closes all File Explorer windows while it installs, so finish any file copies first. Your tabs come back afterwards.</String>
   <String Id="COMPILE_IMG">编译本地图像</String>
   <String Id="GPL_FILE">GPL3_zh_CN.rtf</String>
   <String Id="STANDARD_BUTTONS">QTTab标准按钮</String>

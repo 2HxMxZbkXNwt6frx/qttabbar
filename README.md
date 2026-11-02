@@ -28,16 +28,13 @@ A step-by-step guide in Japanese is in [README_ja.md](README_ja.md).
    powershell -ExecutionPolicy Bypass -File .\Tools\Win11ToolbarFix\Win11ToolbarFix.ps1 -Action InstallTask
    ```
 
-3. In a normal PowerShell, install the MSI. Explorer closes and restarts, and there is one UAC prompt.
+3. Double-click the MSI. After the UAC prompt, Setup closes all File Explorer windows and restarts Explorer, so wait for any file copies to finish first. On the last page, leave the option ticked and click Finish. A window with your saved tabs opens.
+4. Turn the bars on as described in [Getting the full tab bar back](#getting-the-full-tab-bar-back-on-windows-11-24h2--25h2--26h2).
+5. Run `QTTabBarDoctor.ps1` with no arguments. It should end with `Result: nothing wrong found.` If it doesn't, run this in a normal PowerShell. It reinstalls the MSI with Explorer closed, and there is one UAC prompt.
 
    ```powershell
-   powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.ps1 -Action Repair -Msi "C:\path\to\QTTabBar Setup 1.6.4.msi"
+   powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.ps1 -Action Repair -Msi "C:\path\to\QTTabBar-Setup-1.6.4.msi"
    ```
-
-   Don't double-click the MSI: while Explorer has the old DLL loaded, the install can report success and leave the old build in place.
-
-4. Turn the bars on as described in [Getting the full tab bar back](#getting-the-full-tab-bar-back-on-windows-11-24h2--25h2--26h2).
-5. Run `QTTabBarDoctor.ps1` with no arguments. It should end with `Result: nothing wrong found.`
 
 ### Before you run Win11ToolbarFix
 

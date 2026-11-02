@@ -7,7 +7,7 @@
 
 | ファイル | 用途 |
 |---|---|
-| `QTTabBar Setup *.msi` | QTTabBar 本体のインストーラー（直接ダブルクリックはしない。手順 3 を参照） |
+| `QTTabBar Setup *.msi` | QTTabBar 本体のインストーラー（手順 3 で使う） |
 | `tools\QTTabBarDoctor.ps1` | インストール・修復・状態確認・設定の書き出し/取り込み |
 | `tools\Win11ToolbarFix.ps1` | 26H2 で消されたエクスプローラーの旧ツールバーを戻す（QTTabBar の置き場所） |
 | `tools\Import-QTTabBar2048Settings.ps1` | QTTabBar 2048 Beta2 の設定（XML）をこの版に変換 |
@@ -54,7 +54,6 @@ powershell -ExecutionPolicy Bypass -File .\tools\QTTabBarDoctor.ps1 -Action Repa
 
 - 開いているエクスプローラーが一度閉じ、タスクバーが消えます。UAC の確認が 1 回出るので「はい」。
 - 最後に `Repaired: QTTabBar.dll in the GAC is the build that was installed.` と出れば完了。
-- MSI をダブルクリックして入れないこと。エクスプローラーが使用中だと古い DLL が残ることがあります。
 
 ## 4. 設定を入れる（A か B のどちらか）
 

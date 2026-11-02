@@ -22,6 +22,7 @@
 #include <exdisp.h>
 #include <Shlwapi.h>
 #include <psapi.h>
+#include <tlhelp32.h>
 #include <tchar.h>
 #include <vector>
 #include "../QTHookLib/CComPtr.h"
@@ -167,6 +168,62 @@ UINT WIXAPI CloseAndReopenAndDeletePlugins(MSIHANDLE hInstaller) {
 }
 
 
+
+static BOOL CALLBACK AddFolderWindow(HWND hwnd, LPARAM lParam) {
+    TCHAR name[32];
+    if(GetClassName(hwnd, name, 32) > 0 && _tcscmp(name, _T("CabinetWClass")) == 0) {
+        ((std::vector<HWND>*)lParam)->push_back(hwnd);
+    }
+    return TRUE;
+}
+
+static void GetFolderWindows(std::vector<HWND>& windows) {
+    windows.clear();
+    EnumWindows(AddFolderWindow, (LPARAM)&windows);
+}
+
+// Explorer keeps QTTabBar.dll open, and an install over it can leave the old DLL in the GAC. This
+// closes the folder windows the way QTTabBar's "Close window" does (WM_CLOSE with lParam 1, sent:
+// every tab closes and the session is saved for the next window), then ends Explorer. The exit code
+// is Stop-Process's: Windows starts the shell again after -1 (AutoRestartShell), not after taskkill's
+// 1. The new shell does not load QTTabBar until a folder window opens.
+UINT WIXAPI CloseExplorer(MSIHANDLE hInstaller) {
+    std::vector<HWND> windows;
+    GetFolderWindows(windows);
+    for(UINT i = 0; i < windows.size(); ++i) {
+        DWORD_PTR result;
+        SendMessageTimeout(windows[i], WM_CLOSE, 0, 1, SMTO_ABORTIFHUNG, 5000, &result);
+    }
+    for(int i = 0; i < 25 && !windows.empty(); ++i) {
+        Sleep(200);
+        GetFolderWindows(windows);
+    }
+
+    DWORD session;
+    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if(snapshot == INVALID_HANDLE_VALUE) return ERROR_SUCCESS;
+    if(ProcessIdToSessionId(GetCurrentProcessId(), &session)) {
+        PROCESSENTRY32 entry;
+        entry.dwSize = sizeof(entry);
+        for(BOOL more = Process32First(snapshot, &entry); more; more = Process32Next(snapshot, &entry)) {
+            DWORD owner;
+            if(_tcsicmp(entry.szExeFile, _T("explorer.exe")) != 0) continue;
+            if(!ProcessIdToSessionId(entry.th32ProcessID, &owner) || owner != session) continue;
+            HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, entry.th32ProcessID);
+            if(process == NULL) continue;
+            TerminateProcess(process, (UINT)-1);
+            WaitForSingleObject(process, 3000);
+            CloseHandle(process);
+        }
+    }
+    CloseHandle(snapshot);
+
+    // The taskbar comes back before the install goes on.
+    for(int i = 0; i < 25 && FindWindow(_T("Shell_TrayWnd"), NULL) == NULL; ++i) {
+        Sleep(200);
+    }
+    return ERROR_SUCCESS;
+}
 
 UINT WIXAPI CheckOldVersion(MSIHANDLE hInstaller) {
     HKEY key;

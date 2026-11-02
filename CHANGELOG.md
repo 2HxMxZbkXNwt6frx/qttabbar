@@ -1,6 +1,6 @@
 # Changelog
 
-- 1.6.4 (2026, this fork) Full tab bar on Windows 11 26H2, second and vertical command bars, icon sizes in pixels, 2048 Beta2 settings import, QTTabBarDoctor, mouse side buttons act once per press, built-in Japanese language, readable plugin names (sources were saved in GBK), Options lists visible in the light theme
+- 1.6.4 (2026, this fork) Full tab bar on Windows 11 26H2, second and vertical command bars, icon sizes in pixels, 2048 Beta2 settings import, QTTabBarDoctor, mouse side buttons act once per press, built-in Japanese language, readable plugin names (sources were saved in GBK), Options lists visible in the light theme, the installer closes Explorer before it replaces QTTabBar.dll
 - [1.5.9 (2026)](https://github.com/niklas2233/qttabbar/releases/tag/v1.5.9) Fix Windows 11 double-click to go up a level (broke after long Explorer sessions), Back button jumping to Home instead of stepping back, and mouse back/forward (X1/X2) side buttons
 - [1.5.7 (2026)](https://github.com/niklas2233/qttabbar/releases/tag/v1.5.7) Fix back/forward and double-click on Windows 11 native tabs; register the ContextMenuOptions handler
 - [1.5.6.2 (2026)](https://github.com/niklas2233/qttabbar/releases/tag/v1.5.6.2) Upgrade to .NET 4.8; fix options dialog crash and empty window; bars disabled by default; installer restarts Explorer correctly

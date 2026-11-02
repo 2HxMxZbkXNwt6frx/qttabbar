@@ -4,3 +4,4 @@ EXPORTS
     CloseAndReopen
 	CloseAndReopenAndDeletePlugins
     CheckOldVersion
+    CloseExplorer

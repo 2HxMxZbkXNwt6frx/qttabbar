@@ -101,6 +101,9 @@ foreach ($plat in @('Win32', 'x64')) {
     & $msbuild "$root\QTHookLib\QTHookLib.vcxproj" /p:Configuration=Release /p:Platform=$plat $vcProps /nologo /v:minimal
     if ($LASTEXITCODE -ne 0) { throw "QTHookLib $plat build failed" }
 }
+# The MSI's custom actions; the package is x86, so this one is Win32 only.
+& $msbuild "$root\InstallerHelper\InstallerHelper.vcxproj" /p:Configuration=Release /p:Platform=Win32 $vcProps /nologo /v:minimal
+if ($LASTEXITCODE -ne 0) { throw "InstallerHelper build failed" }
 
 # --- 3. Build the MSI ---------------------------------------------------
 

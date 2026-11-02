@@ -2,7 +2,8 @@
 <WixLocalization Culture="en-us" xmlns="http://schemas.microsoft.com/wix/2006/localization">
   <String Id="YOURLOCID">Your localized string</String>
   <String Id="READ_INFO">Please read the following information.</String>
-  <String Id="CLOSE_TABS">Close all Explorer windows and reopen them as tabs</String>
+  <String Id="CLOSE_TABS">Restart Explorer and open a window with your tabs</String>
+  <String Id="CLOSE_EXPLORER_NOTE">Setup closes all File Explorer windows while it installs, so finish any file copies first. Your tabs come back afterwards.</String>
   <String Id="COMPILE_IMG">Compiling native images</String>
   <String Id="GPL_FILE">GPL3.rtf</String>
   <String Id="STANDARD_BUTTONS">QTTab Standard Buttons</String>

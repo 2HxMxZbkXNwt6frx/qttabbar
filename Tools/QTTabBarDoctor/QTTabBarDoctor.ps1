@@ -350,7 +350,9 @@ function Show-Status {
         Say ("  {0:yyyy-MM-dd HH:mm:ss}  {1}" -f $e.TimeCreated, $file)
         if ($inUse.Count -gt 0) {
             Say '    Restart Manager: files were in use (Explorer could not be restarted; "machine restart is required")'
-            if ($e -eq $begins[-1]) { $warn.Add('The last install ran while Explorer was using QTTabBar.dll, so the old DLL may have stayed in place.') }
+            # The GAC copy carries the time the install wrote it.
+            if ($gac -and $gac.LastWriteTime -ge $e.TimeCreated) { Say '    QTTabBar.dll in the GAC was replaced by this install all the same.' }
+            elseif ($e -eq $begins[-1]) { $warn.Add('The last install ran while Explorer was using QTTabBar.dll, so the old DLL may have stayed in place.') }
         }
     }
 

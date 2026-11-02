@@ -380,6 +380,7 @@ Language="1033"
         <AppSearch Sequence="1"></AppSearch>
         <!-- UPGRADEFOUND is what the Upgrade table above sets; nothing sets PREVIOUSVERSIONSINSTALLED,
              so old versions used to stay installed next to the new one. -->
+        <Custom Action="CloseExplorer" Before="InstallValidate">QTCLOSEEXPLORER AND NOT REMOVE</Custom>
         <RemoveExistingProducts After="InstallValidate">UPGRADEFOUND</RemoveExistingProducts>
       </InstallExecuteSequence>
         
@@ -397,14 +398,17 @@ Language="1033"
         <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="!(loc.CLOSE_TABS)" />
         <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
 
-        <!-- Restart Explorer: three sequential actions to avoid timing and elevation issues.
-             WixShellExec uses ShellExecute which correctly de-elevates the new Explorer process. -->
-        <Property Id="WixQuietExecCmdLine" Value='"[SystemFolder]taskkill.exe" /F /IM explorer.exe' />
-        <CustomAction Id="KillExplorer" BinaryKey="WixCA" DllEntry="WixQuietExec" Impersonate="yes" Return="ignore" />
+        <!-- Explorer must not hold QTTabBar.dll while the install replaces it. After the UAC prompt, so
+             that declining it closes nothing, and only with a UI, which says so: a silent install does
+             not close the user's windows unless QTCLOSEEXPLORER=1 is passed. -->
+        <Binary Id="InstallerHelper" SourceFile="..\InstallerHelper\bin\Release\InstallerHelper.dll" />
+        <CustomAction Id="CloseExplorer" BinaryKey="InstallerHelper" DllEntry="CloseExplorer" Return="ignore" />
+        <Property Id="QTCLOSEEXPLORER" Secure="yes" />
+        <SetProperty Id="QTCLOSEEXPLORER" Value="1" Before="ExecuteAction" Sequence="ui" />
 
-        <Property Id="WixQuietExec64CmdLine" Value='"[SystemFolder]ping.exe" 127.0.0.1 -n 2' />
-        <CustomAction Id="WaitAfterKill" BinaryKey="WixCA" DllEntry="WixQuietExec64" Impersonate="yes" Return="ignore" />
-
+        <!-- Restart Explorer on Finish: CloseExplorer, then this.
+             WixShellExec uses ShellExecute which correctly de-elevates the new Explorer process.
+             With the shell already back it opens a folder window, which gets the saved tabs. -->
         <Property Id="WixShellExecTarget" Value="[WindowsFolder]explorer.exe" />
         <CustomAction Id="StartExplorer" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
 
