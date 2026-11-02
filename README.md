@@ -17,9 +17,10 @@ Tested on Windows 11 Pro 26H2, build 26300.9711. Other builds may behave differe
 
 ### Install on Windows 11 26H2
 
-A step-by-step guide in Japanese is in [Tools/Kit/README-ja.md](Tools/Kit/README-ja.md).
+A step-by-step guide in Japanese is in [README_ja.md](README_ja.md).
 
 1. Uninstall any other version of QTTabBar. If you want to keep 2048 settings, export them first.
+   Download the MSI and **Source code (zip)** from Releases, unblock both (right-click > Properties > Unblock), and extract the zip.
 2. In an elevated PowerShell, apply the toolbar fix, then restart Windows. Read [the section below](#before-you-run-win11toolbarfix) first.
 
    ```powershell
