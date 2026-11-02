@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano
 //
@@ -27,7 +27,7 @@ namespace QuizoPlugins {
     /// <summary>
     /// Cut button
     /// </summary>
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "¹ØÖØ¸´", Version = "1.0.0.0", Description = "¹Ø±ÕtabÒ³ÉÏÂ·¾¶ÖØ¸´µÄÎÄ¼ş¼Ğ")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "å…³é‡å¤", Version = "1.0.0.0", Description = "å…³é—­tabé¡µä¸Šè·¯å¾„é‡å¤çš„æ–‡ä»¶å¤¹")]
     public class CloseRepeatButton : IBarButton {
         private IPluginServer pluginServer;
         private IShellBrowser shellBrowser;
@@ -150,7 +150,7 @@ namespace QuizoPlugins {
     /// <summary>
     /// Copy button
     /// </summary>
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "ÅÅĞò", Version = "1.0.0.0", Description = "ÅÅĞòTab")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "æ’åº", Version = "1.0.0.0", Description = "æ’åºTab")]
     public class SortButton : IBarButton {
         private IPluginServer pluginServer;
         private IShellBrowser shellBrowser;
@@ -161,7 +161,7 @@ namespace QuizoPlugins {
 
         public void Open(IPluginServer pluginServer, IShellBrowser shellBrowser) {
             this.pluginServer = pluginServer;
-            this.shellBrowser = shellBrowser; // µ¼ÖÂ¼ôÇĞ±¨´í
+            this.shellBrowser = shellBrowser; // å¯¼è‡´å‰ªåˆ‡æŠ¥é”™
 
             if(!pluginServer.TryGetLocalizedStrings(this, 1, out ResStr)) {
                 ResStr = new string[] { StringResources.ButtonNames[1] };
@@ -208,7 +208,7 @@ namespace QuizoPlugins {
         }
 
         public void OnButtonClick() {
-            //  È¥ÖØ
+            //  å»é‡
             ITab[] tabs = pluginServer.GetTabs();
             if (null != tabs && tabs.Length > 0)
             {
@@ -236,7 +236,7 @@ namespace QuizoPlugins {
                     }
                 }
             }
-            // ÅÅĞò
+            // æ’åº
             tabs = pluginServer.GetTabs();
             if (tabs.Length > 0)
             {

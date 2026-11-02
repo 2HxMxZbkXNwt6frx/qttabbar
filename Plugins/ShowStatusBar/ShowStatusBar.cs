@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+﻿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano
 //
@@ -23,7 +23,7 @@ using QTPlugin.Interop;
 
 namespace QuizoPlugins {
     // [Plugin(PluginType.Background, Author = "Quizo", Name = "Show StatusBar", Version = "0.9.0.0", Description = "ShowStatusBar")]
-    [Plugin(PluginType.Background, Author = "indiff", Name = "��ʾ״̬��", Version = "0.9.0.0", Description = "��ʾ״̬��")]
+    [Plugin(PluginType.Background, Author = "indiff", Name = "显示状态栏", Version = "0.9.0.0", Description = "显示状态栏")]
     public class ShowStatusBar : IPluginClient {
         private IPluginServer pluginServer;
         private IShellBrowser shellBrowser;
@@ -54,7 +54,7 @@ namespace QuizoPlugins {
 
         public bool QueryShortcutKeys(out string[] actions) {
           //  actions = new string[] { "Show statusbar" };
-            actions = new string[] { "��ʾ״̬��" };
+            actions = new string[] { "显示状态栏" };
             return true;
         }
 

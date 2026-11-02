@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano
 //
@@ -24,7 +24,7 @@ using QTPlugin.Interop;
 
 namespace QuizoPlugins {
    // [Plugin(PluginType.Background, Author = "Quizo", Name = "FolderTreeButton", Version = "1.0.0.0", Description = "Show folder tree for XP")]
-    [Plugin(PluginType.Background, Author = "indiff", Name = "Ä¿Â¼Ê÷", Version = "1.0.0.0", Description = "ÏÔÊ¾Ä¿Â¼Ê÷(XP)£¬ºóÌ¨²å¼ş")]
+    [Plugin(PluginType.Background, Author = "indiff", Name = "ç›®å½•æ ‘", Version = "1.0.0.0", Description = "æ˜¾ç¤ºç›®å½•æ ‘(XP)ï¼Œåå°æ’ä»¶")]
     public class QTFolderTreeButton : IBarButton {
         [DllImport("user32.dll")]
         private static extern IntPtr SetFocus(IntPtr hWnd);

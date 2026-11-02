@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano
 //
@@ -24,7 +24,7 @@ using QTPlugin.Interop;
 
 namespace QuizoPlugins {
    // [Plugin(PluginType.Background, Author = "Quizo", Name = "CreateNewItemButton", Version = "0.9.0.0", Description = "Create New Item by shortcut key.")]
-    [Plugin(PluginType.Background, Author = "indiff", Name = "´´½¨ĞÂÏîÄ¿", Version = "0.9.0.0", Description = "Í¨¹ı¿ì½İ¼ü´´½¨ĞÂÏîÄ¿.")]
+    [Plugin(PluginType.Background, Author = "indiff", Name = "åˆ›å»ºæ–°é¡¹ç›®", Version = "0.9.0.0", Description = "é€šè¿‡å¿«æ·é”®åˆ›å»ºæ–°é¡¹ç›®.")]
     public class CreateNewItem : IPluginClient
     {
         private IPluginServer pluginServer;
@@ -44,7 +44,7 @@ namespace QuizoPlugins {
         }
 
         public bool QueryShortcutKeys(out string[] actions) {
-            actions = new string[] { "´´½¨ÎÄ¼ş¼Ğ", "´´½¨ĞÂÎÄ±¾" };
+            actions = new string[] { "åˆ›å»ºæ–‡ä»¶å¤¹", "åˆ›å»ºæ–°æ–‡æœ¬" };
             return true;
         }
 
@@ -84,7 +84,7 @@ namespace QuizoPlugins {
                 // make new name
                 bool fDir = index == 0;
                 int i = 2;
-                string name = fDir ? "ĞÂÄ¿Â¼" : "ĞÂÎÄ±¾";
+                string name = fDir ? "æ–°ç›®å½•" : "æ–°æ–‡æœ¬";
                 string ext = fDir ? String.Empty : ".txt";
                 string pathNew = path + "\\" + name + ext;
 

@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano
 //
@@ -24,7 +24,7 @@ using QTPlugin.Interop;
 
 namespace QuizoPlugins {
     // [Plugin(PluginType.Background, Author = "Quizo", Name = "MigemoLoader", Version = "0.9.1.0", Description = "Migemo integration")]
-    [Plugin(PluginType.Background, Author = "indiff", Name = "×°ÔØ»ú", Version = "0.9.1.0", Description = "×°ÔØ»ú¼¯³É£¬ºóÌ¨ÀàĞÍ²å¼ş")]
+    [Plugin(PluginType.Background, Author = "indiff", Name = "è£…è½½æœº", Version = "0.9.1.0", Description = "è£…è½½æœºé›†æˆï¼Œåå°ç±»å‹æ’ä»¶")]
     public class MigemoLoader : IFilter {
         private IPluginServer pluginServer;
 

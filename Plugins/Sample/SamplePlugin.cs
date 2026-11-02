@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano
 //
@@ -37,7 +37,7 @@ namespace QuizoPlugins {
     ///			Author, Name, Version, and Description are used in Options -> Plugins tab.
     /// </summary>
    // [Plugin(PluginType.Interactive, Author = "Quizo", Name = "SampleSplitButton", Version = "0.9.0.0", Description = "Sample plugin - shows SplitButton")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "²âÊÔ²å¼ş", Version = "0.9.0.0", Description = "²âÊÔ¹¦ÄÜ")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "æµ‹è¯•æ’ä»¶", Version = "0.9.0.0", Description = "æµ‹è¯•åŠŸèƒ½")]
     public class SampleSplitButton : IBarDropButton
     {
 
@@ -45,7 +45,7 @@ namespace QuizoPlugins {
         private IShellBrowser shellBrowser;
 
         private bool fFirstMenuDropDown = true;
-        private string text = "²âÊÔ²å¼ş";
+        private string text = "æµ‹è¯•æ’ä»¶";
         private List<Address> lstSelectedItems = new List<Address>();
 
 
@@ -112,9 +112,9 @@ namespace QuizoPlugins {
                     pluginServer.ExecuteCommand(Commands.OpenTabBarOptionDialog, null);
                 }
             }
-            if (menuText == "²âÊÔ±êÇ©Ëø¶¨×´Ì¬")
+            if (menuText == "æµ‹è¯•æ ‡ç­¾é”å®šçŠ¶æ€")
             {
-                MessageBox.Show("²âÊÔ±êÇ©Ëø¶¨×´Ì¬");
+                MessageBox.Show("æµ‹è¯•æ ‡ç­¾é”å®šçŠ¶æ€");
                 ITab[] tabs = pluginServer.GetTabs();
                 foreach (ITab iTab in tabs)
                 {
@@ -216,9 +216,9 @@ namespace QuizoPlugins {
             // No need to call "menu.SuspendLayout" or "menu.ResumeLayout".
 
             if(fFirstMenuDropDown) {
-                menu.Items.Add(new ToolStripMenuItem("´ò¿ªÎÄ¼ş¼Ğ"));
-                menu.Items.Add(new ToolStripMenuItem("²âÊÔÑ¡ÖĞ"));
-                menu.Items.Add(new ToolStripMenuItem("²âÊÔ±êÇ©Ëø¶¨×´Ì¬"));
+                menu.Items.Add(new ToolStripMenuItem("æ‰“å¼€æ–‡ä»¶å¤¹"));
+                menu.Items.Add(new ToolStripMenuItem("æµ‹è¯•é€‰ä¸­"));
+                menu.Items.Add(new ToolStripMenuItem("æµ‹è¯•æ ‡ç­¾é”å®šçŠ¶æ€"));
                 fFirstMenuDropDown = false;
             }
         }
@@ -226,7 +226,7 @@ namespace QuizoPlugins {
         public void OnDropDownItemClick(ToolStripItem item, MouseButtons mouseButton) {
             // user clicked the dropdown menu item of this plugin button dropdown.
 
-            if (item.Text == "´ò¿ªÎÄ¼ş¼Ğ")
+            if (item.Text == "æ‰“å¼€æ–‡ä»¶å¤¹")
             {
                 if(mouseButton == MouseButtons.Left) {
                     string mydocument = Environment.GetFolderPath(Environment.SpecialFolder.Personal);
@@ -236,14 +236,14 @@ namespace QuizoPlugins {
                     SystemSounds.Asterisk.Play();
                 }
             }
-            else if (item.Text == "²âÊÔÑ¡ÖĞ")
+            else if (item.Text == "æµ‹è¯•é€‰ä¸­")
             {
                 if(lstSelectedItems.Count > 0)
                     pluginServer.TrySetSelection(lstSelectedItems.ToArray(), false);
             }
-            else if (item.Text == "²âÊÔ±êÇ©Ëø¶¨×´Ì¬")
+            else if (item.Text == "æµ‹è¯•æ ‡ç­¾é”å®šçŠ¶æ€")
             {
-                MessageBox.Show("²âÊÔ±êÇ©Ëø¶¨×´Ì¬");
+                MessageBox.Show("æµ‹è¯•æ ‡ç­¾é”å®šçŠ¶æ€");
                 ITab[] tabs = pluginServer.GetTabs();
                 foreach (ITab iTab in tabs)
                 {

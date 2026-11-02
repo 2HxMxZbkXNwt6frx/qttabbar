@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010-2022  Quizo, Paul Accisano, indiff
 //
@@ -27,7 +27,7 @@ using QTPlugin.Interop;
 
 namespace QuizoPlugins {
    // [Plugin(PluginType.Background, Author = "Quizo", Name = "QT Window Manager", Version = "1.1.0.0", Description = "Window manager")]
-    [Plugin(PluginType.Background, Author = "indiff", Name = "QT´°¿Ú¹ÜÀí", Version = "1.1.0.1", Description = "´°¿Ú¹ÜÀí;ĞŞ¸´¿ÕÖ¸Õë")]
+    [Plugin(PluginType.Background, Author = "indiff", Name = "QTçª—å£ç®¡ç†", Version = "1.1.0.1", Description = "çª—å£ç®¡ç†;ä¿®å¤ç©ºæŒ‡é’ˆ")]
     public class QTWindowManager : IBarDropButton {
         private IPluginServer pluginServer;
         private string[] ResStrs;

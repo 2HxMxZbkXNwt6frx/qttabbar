@@ -1,4 +1,4 @@
-//    This file is part of QTTabBar, a shell extension for Microsoft
+ï»¿//    This file is part of QTTabBar, a shell extension for Microsoft
 //    Windows Explorer.
 //    Copyright (C) 2010  Quizo, Paul Accisano, indiff
 //
@@ -27,7 +27,7 @@ namespace QuizoPlugins {
     /// Cut button
     /// </summary>
    // [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Cut", Version = "1.0.0.0", Description = "Cut files")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "¼ôÇĞ", Version = "1.0.0.1", Description = "¼ôÇĞÎÄ¼ş;ĞŞ¸´¼ôÇĞ²å¼şÑÏÖØbug")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "å‰ªåˆ‡", Version = "1.0.0.1", Description = "å‰ªåˆ‡æ–‡ä»¶;ä¿®å¤å‰ªåˆ‡æ’ä»¶ä¸¥é‡bug")]
     public class CutButton : IBarButton {
         private IPluginServer pluginServer;
         private IShellBrowser shellBrowser;
@@ -156,7 +156,7 @@ namespace QuizoPlugins {
     /// Copy button
     /// </summary>
   // [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Copy", Version = "1.0.0.0", Description = "Copy files")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "¸´ÖÆ", Version = "1.0.0.0", Description = "¸´ÖÆÎÄ¼ş")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "å¤åˆ¶", Version = "1.0.0.0", Description = "å¤åˆ¶æ–‡ä»¶")]
     public class CopyButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -250,7 +250,7 @@ namespace QuizoPlugins {
     /// Paste Button
     /// </summary>
    // [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Paste", Version = "1.0.0.0", Description = "Paste files")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "Õ³Ìù", Version = "1.0.0.0", Description = "Õ³ÌùÎÄ¼ş")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "ç²˜è´´", Version = "1.0.0.0", Description = "ç²˜è´´æ–‡ä»¶")]
     public class PasteButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -334,7 +334,7 @@ namespace QuizoPlugins {
     /// Delete button
     /// </summary>
   //  [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Delete", Version = "1.0.0.0", Description = "Delete files")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "É¾³ı", Version = "1.0.0.0", Description = "É¾³ıÎÄ¼ş")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "åˆ é™¤", Version = "1.0.0.0", Description = "åˆ é™¤æ–‡ä»¶")]
     public class DeleteButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -428,7 +428,7 @@ namespace QuizoPlugins {
     /// CopyTo button
     /// </summary>
   //  [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Copy To Folder", Version = "1.0.0.0", Description = "Open copy-to-folder dialog")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "¸´ÖÆµ½ÎÄ¼ş¼Ğ", Version = "1.0.0.0", Description = "´ò¿ª¸´ÖÆµ½¶Ô»°¿ò")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "å¤åˆ¶åˆ°æ–‡ä»¶å¤¹", Version = "1.0.0.0", Description = "æ‰“å¼€å¤åˆ¶åˆ°å¯¹è¯æ¡†")]
     public class CopyToButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -523,7 +523,7 @@ namespace QuizoPlugins {
     /// MoveTo button
     /// </summary>
   //  [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Move To Folder", Version = "1.0.0.0", Description = "Open move-to-folder dialog")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "ÒÆ¶¯µ½ÎÄ¼ş¼Ğ", Version = "1.0.0.0", Description = "´ò¿ªÒÆ¶¯µ½ÎÄ¼ş¼Ğ")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "ç§»åŠ¨åˆ°æ–‡ä»¶å¤¹", Version = "1.0.0.0", Description = "æ‰“å¼€ç§»åŠ¨åˆ°æ–‡ä»¶å¤¹")]
     public class MoveToButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -618,7 +618,7 @@ namespace QuizoPlugins {
     /// Undo Button
     /// </summary>
   //  [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Undo", Version = "1.0.0.0", Description = "Undo operation")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "³·Ïú", Version = "1.0.0.0", Description = "³·Ïú²Ù×÷")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "æ’¤é”€", Version = "1.0.0.0", Description = "æ’¤é”€æ“ä½œ")]
     public class UndoButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -693,7 +693,7 @@ namespace QuizoPlugins {
     /// Send up button
     /// </summary>
  //   [Plugin(PluginType.Background, Author = "Quizo", Name = "Send To Parent", Version = "1.0.0.1", Description = "Send files to parent folder. This copies when Ctrl key is down.")]
-    [Plugin(PluginType.Background, Author = "indiff", Name = "·¢ËÍµ½¸¸Ä¿Â¼", Version = "1.0.0.1", Description = "·¢ËÍÎÄ¼şµ½¸¸Ä¿Â¼.¸Ã¸´ÖÆ²Ù×÷ÔÚ½öÔÚCtrl¼ü°´ÏÂ.")]
+    [Plugin(PluginType.Background, Author = "indiff", Name = "å‘é€åˆ°çˆ¶ç›®å½•", Version = "1.0.0.1", Description = "å‘é€æ–‡ä»¶åˆ°çˆ¶ç›®å½•.è¯¥å¤åˆ¶æ“ä½œåœ¨ä»…åœ¨Ctrlé”®æŒ‰ä¸‹.")]
     public class SendToParentButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
@@ -800,7 +800,7 @@ namespace QuizoPlugins {
     /// Properties button
     /// </summary>
  //   [Plugin(PluginType.Interactive, Author = "Quizo", Name = "Properties", Version = "1.0.0.1", Description = "Show file properties")]
-    [Plugin(PluginType.Interactive, Author = "indiff", Name = "ÊôĞÔ", Version = "1.0.0.1", Description = "ÏÔÊ¾ÎÄ¼şÊôĞÔ")]
+    [Plugin(PluginType.Interactive, Author = "indiff", Name = "å±æ€§", Version = "1.0.0.1", Description = "æ˜¾ç¤ºæ–‡ä»¶å±æ€§")]
     public class PropertiesButton : IBarButton {
         private IPluginServer pluginServer;
         private string[] ResStr;
