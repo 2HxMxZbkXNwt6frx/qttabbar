@@ -367,6 +367,7 @@
     <Compile Include="Resources_String_pt_BR.cs" />
     <Compile Include="Resources_String_ru_RU.cs" />
     <Compile Include="Resources_String_tr_TR.cs" />
+    <Compile Include="Resources_String_ja_JP.cs" />
     <Compile Include="Resource_String_zh_CN.cs" />
     <Compile Include="SFGAO.cs" />
     <Compile Include="ShellColors.cs" />
@@ -614,6 +615,10 @@
     </EmbeddedResource>
     <EmbeddedResource Include="Resources_String_tr_TR.resx">
       <DependentUpon>Resources_String_tr_TR.cs</DependentUpon>
+      <SubType>Designer</SubType>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Resources_String_ja_JP.resx">
+      <DependentUpon>Resources_String_ja_JP.cs</DependentUpon>
       <SubType>Designer</SubType>
     </EmbeddedResource>
     <EmbeddedResource Include="Resource_String_zh_CN.resx">

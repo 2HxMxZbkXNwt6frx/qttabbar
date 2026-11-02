@@ -1084,6 +1084,11 @@ namespace QTTabBarLib {
                     BuiltInLangSelectedIndex = 7;
                     BuiltInLang = "Russian";
                 }
+                else if (uiCulture.Equals("ja-JP") || lUiCulture.Equals("ja"))
+                {
+                    BuiltInLangSelectedIndex = QTUtility.LangIndexJapanese;
+                    BuiltInLang = "日本語";
+                }
                 else {
                     BuiltInLangSelectedIndex = 0;
                     BuiltInLang = "English";

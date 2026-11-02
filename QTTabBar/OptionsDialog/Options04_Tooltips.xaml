@@ -188,7 +188,7 @@
                 FontWeight="Bold"
                 Grid.Column="2"/>
             <Label
-                Content="Video filetypes"
+                x:Name="lblVideoFiles" Content="Video filetypes"
                 Height="16"
                 Padding="0"
                 Margin="2,0"

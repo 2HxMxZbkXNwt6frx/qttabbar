@@ -13,6 +13,7 @@ Tested on Windows 11 Pro 26H2, build 26300.9711. Other builds may behave differe
 - **History.** Up to 128 closed tabs and recent files.
 - **Tabs.** Long titles can scroll through the tab. Start-up tabs on network shares that don't answer no longer hold the window up.
 - **Button images.** Reads QTTabBar 1.x and 2048 image strips.
+- **Japanese UI.** A built-in Japanese language (Options > Language).
 - **Tools.** `QTTabBarDoctor` diagnoses an install, repairs it and exports or imports settings. `Win11ToolbarFix` restores the classic toolbar. `Import-QTTabBar2048Settings` converts 2048 settings. `Tools\Kit` packs an installer and guide for setting up another PC.
 
 ### Install on Windows 11 26H2
@@ -63,6 +64,7 @@ QTTabBar 2048 is a separate closed-source program and isn't part of this project
 - The installer is unsigned, so Windows may show a SmartScreen warning.
 - Selecting a tab on a network share that doesn't answer still waits for the Windows timeout (about 5 seconds).
 - Text added by this fork is in English and Japanese only.
+- Some plugin names and descriptions are in Chinese, as upstream wrote them.
 
 ### Building this fork
 

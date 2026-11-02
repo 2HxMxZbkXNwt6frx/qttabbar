@@ -49,7 +49,8 @@ namespace QTTabBarLib {
                 string mySite = "https://www.paypal.com/donate/?cmd=_donations&business=qwop%40live.cn&item_name=QTTabBar&return=https%3A%2F%2Findiff.github.io%2Fqttabbar%2F&cancel_return=https%3A%2F%2Findiff.github.io%2Fqttabbar%2F&no_shipping=1&on0=msg&os0=&currency_code=USD&submit.x=154&submit.y=31";
                 mySite = "https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=7YNCVL5P9ZDY8"; 
 			
-                runQwopSite.Text = "Make a donation to support QTTabBar";
+                runQwopSite.Text = QTUtility.IsJapanese ? "QTTabBar の開発を寄付で支援する" : "Make a donation to support QTTabBar";
+                if(QTUtility.IsJapanese) lblLanguageBy.Content = "翻訳:";
 			    qwopSite.NavigateUri = new Uri( mySite );
                 qwopSite.RequestNavigate += (sender, args) => Process.Start( mySite );
             }

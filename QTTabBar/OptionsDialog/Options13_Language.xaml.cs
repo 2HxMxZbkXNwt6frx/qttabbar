@@ -38,6 +38,7 @@ namespace QTTabBarLib {
         private ObservableCollection<string> PluginFiles;
         public Options13_Language() {
             InitializeComponent();
+            if(QTUtility.IsJapanese) btnSaveTxt.Content = "テキストで保存";
 
             // This goes in the constructor rather than InitializeConfig because it should
             // not be affected by Apply.

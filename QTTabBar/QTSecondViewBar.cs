@@ -1710,8 +1710,8 @@ namespace QTTabBarLib
         private static void Register(Type t)
         {
             string name = t.GUID.ToString("B");
-            string str = QTUtility.IsChinese ? "左侧视图" : (QTUtility.IsJapanese ? "エクストラ ビュー (左)" : "Extra View (left)");
-            string helpStr = QTUtility.IsChinese ? "左侧扩展视图" : (QTUtility.IsJapanese ? "左にさらにビューを追加します。" : "Extra View (left)");
+            string str = QTUtility.IsChinese ? "左侧视图" : (QTUtility.IsJapaneseWindows ? "エクストラ ビュー (左)" : "Extra View (left)");
+            string helpStr = QTUtility.IsChinese ? "左侧扩展视图" : (QTUtility.IsJapaneseWindows ? "左にさらにビューを追加します。" : "Extra View (left)");
             using (RegistryKey subKey = Registry.ClassesRoot.CreateSubKey(@"CLSID\" + name))
             {
                 subKey.SetValue(null, "");

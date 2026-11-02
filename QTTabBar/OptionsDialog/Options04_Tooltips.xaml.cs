@@ -35,6 +35,7 @@ namespace QTTabBarLib {
 
         public Options04_Tooltips() {
             InitializeComponent();
+            if(QTUtility.IsJapanese) lblVideoFiles.Content = "動画のファイルの種類";
         }
 
         public override void InitializeConfig() {

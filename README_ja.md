@@ -70,6 +70,10 @@ powershell -ExecutionPolicy Bypass -File .\Tools\QTTabBarDoctor\QTTabBarDoctor.p
 
 最後が `Result: nothing wrong found.` なら完了です（レポートはデスクトップにも保存されます）。`!` で始まる行が出たら、その内容に従ってください。多くは手順3のコマンドをもう一度実行すると直ります。
 
+## 日本語で使う
+
+オプション →「Language」→「Use built-in language」で「日本語」を選びます。Windowsが日本語なら、新規インストールでは最初から日本語になります。一部のプラグイン名と説明は、本家の中国語のままです。
+
 ## QTTabBar 2048 Beta2の設定を引き継ぐ（任意）
 
 ```

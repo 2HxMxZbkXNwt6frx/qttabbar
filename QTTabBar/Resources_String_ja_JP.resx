@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+    Microsoft ResX Schema 
+    
+    Version 2.0
+    
+    The primary goals of this format is to allow a simple XML format 
+    that is mostly human readable. The generation and parsing of the 
+    various data types are done through the TypeConverter classes 
+    associated with the data types.
+    
+    Example:
+    
+    ... ado.net/XML headers & schema ...
+    <resheader name="resmimetype">text/microsoft-resx</resheader>
+    <resheader name="version">2.0</resheader>
+    <resheader name="reader">System.Resources.ResXResourceReader, System.Windows.Forms, ...</resheader>
+    <resheader name="writer">System.Resources.ResXResourceWriter, System.Windows.Forms, ...</resheader>
+    <data name="Name1"><value>this is my long string</value><comment>this is a comment</comment></data>
+    <data name="Color1" type="System.Drawing.Color, System.Drawing">Blue</data>
+    <data name="Bitmap1" mimetype="application/x-microsoft.net.object.binary.base64">
+        <value>[base64 mime encoded serialized .NET Framework object]</value>
+    </data>
+    <data name="Icon1" type="System.Drawing.Icon, System.Drawing" mimetype="application/x-microsoft.net.object.bytearray.base64">
+        <value>[base64 mime encoded string representing a byte array form of the .NET Framework object]</value>
+        <comment>This is a comment</comment>
+    </data>
+                
+    There are any number of "resheader" rows that contain simple 
+    name/value pairs.
+    
+    Each data row contains a name, and value. The row also contains a 
+    type or mimetype. Type corresponds to a .NET class that support 
+    text/value conversion through the TypeConverter architecture. 
+    Classes that don't support this are serialized and stored with the 
+    mimetype set.
+    
+    The mimetype is used for serialized objects, and tells the 
+    ResXResourceReader how to depersist the object. This is currently not 
+    extensible. For a given mimetype the value must be set accordingly:
+    
+    Note - application/x-microsoft.net.object.binary.base64 is the format 
+    that the ResXResourceWriter will generate, however the reader can 
+    read any of the formats listed below.
+    
+    mimetype: application/x-microsoft.net.object.binary.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Binary.BinaryFormatter
+            : and then encoded with base64 encoding.
+    
+    mimetype: application/x-microsoft.net.object.soap.base64
+    value   : The object must be serialized with 
+            : System.Runtime.Serialization.Formatters.Soap.SoapFormatter
+            : and then encoded with base64 encoding.
+
+    mimetype: application/x-microsoft.net.object.bytearray.base64
+    value   : The object must be serialized into a byte array 
+            : using a System.ComponentModel.TypeConverter
+            : and then encoded with base64 encoding.
+    -->
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=2.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Author" xml:space="preserve">
+    <value>2HxMxZbkXNwt6frx</value>
+  </data>
+  <data name="ButtonBar_BtnName" xml:space="preserve">
+    <value>区切り線;戻る;進む;グループ;最近閉じたタブ;アプリケーション;新しいウィンドウ;タブを複製;ロック;コピー ツール;最前面に表示;閉じる;現在のタブ以外を閉じる;ウィンドウを閉じる;左側を閉じる;右側を閉じる;1 つ上へ;再読み込み;検索;不透明度;検索ボックス;オプション</value>
+  </data>
+  <data name="ButtonBar_Misc" xml:space="preserve">
+    <value>パス;名前;現在のフォルダーのパス;現在のフォルダーの名前;MD5; 個の項目;開いているすべてのタブのパス</value>
+  </data>
+  <data name="Country" xml:space="preserve">
+    <value>日本</value>
+  </data>
+  <data name="DateModified" xml:space="preserve">
+    <value>08/29/2022</value>
+  </data>
+  <data name="Desktop" xml:space="preserve">
+    <value>一覧;詳細;並べて表示;既定</value>
+  </data>
+  <data name="DialogButtons" xml:space="preserve">
+    <value>OK;キャンセル;適用(&amp;A);既定(&amp;D);ページをリセット(&amp;P);すべてリセット(&amp;R);リセット;追加;追加...;削除;オプション;有効にする;無効にする;元に戻す;読み込み...;保存...</value>
+  </data>
+  <data name="DragDropToolTip" xml:space="preserve">
+    <value>コピー先:;移動先:;ショートカットの作成先:</value>
+  </data>
+  <data name="ErrorDialogs" xml:space="preserve">
+    <value>操作に失敗しました。\r\nファイルまたはリンク先が存在することを確認してください:\r\n\r\n{0};エラー - QTTabBar;警告: QTTabBar を自動で有効にできませんでした。手動で有効にするには、Alt キーを押して離してから、[表示] の [ツール バー] メニューで QTTabBar を選択してください。;有効にできませんでした;エラー;QTTabBar のフック ライブラリを読み込めませんでした。;QTTabBar のフック ライブラリを初期化できませんでした。;一部の機能が動作しない可能性があります。解決するには、アプリケーションの再インストールが必要な場合があります。;デスクトップのフックに失敗しました。QT Tab デスクトップ ツールを有効にし直してください。;操作に失敗しました。\r\nフォルダーが存在し、次の場所へのアクセス権があることを確認してください:\r\n\r\n\t{0}</value>
+  </data>
+  <data name="FileFilters" xml:space="preserve">
+    <value>画像ファイル;言語ファイル;プラグイン ファイル</value>
+  </data>
+  <data name="FileHashComputer" xml:space="preserve">
+    <value>パス;ハッシュ;閉じる;クリア;更新;常に手前に表示;結果を表示;閉じるときにクリア;フル パス;(計算中...)</value>
+  </data>
+  <data name="MarginDropDown" xml:space="preserve">
+    <value>すべて;左;上;右;下</value>
+  </data>
+  <data name="Misc_Strings" xml:space="preserve">
+    <value>デスクトップの検索;画像ファイルが正しくありません。\r\n\r\n432 x 40 ピクセルの画像ファイルを指定してください。;検索結果:;ショートカット;ファイルを選択;フォルダーを選択;実験的;dummy</value>
+  </data>
+  <data name="OptionsDialog" xml:space="preserve">
+    <value>QTTabBar オプション;このページのすべてのオプションを既定値に戻しますか?;すべてのオプションを既定値に戻しますか? グループ、アプリケーション、プラグインには影響しません。;確認</value>
+  </data>
+  <data name="Options_Page01_Window" xml:space="preserve">
+    <value>エクスプローラー ウィンドウの動作を変更します。;シングル ウィンドウ モード;新しいエクスプローラー ウィンドウをタブとして開く;新しいエクスプローラー ウィンドウをタブにしない;新しいウィンドウとタブの既定の場所;セッションの保存;毎回新しいセッションを開始する;前回のすべてのタブを復元する;前回のロックしたタブだけを復元する;閉じるボタンをクリックしたとき;ウィンドウを閉じる;現在のタブを閉じる;ロックされていないタブをすべて閉じる;次の操作でウィンドウをタスク トレイに入れる;閉じる;最小化;青い + ボタン</value>
+  </data>
+  <data name="Options_Page02_Tabs" xml:space="preserve">
+    <value>タブに関するオプションを変更します。;新しいタブを開く位置:;現在のタブを閉じたときの切り替え先:;新しいタブにすぐ切り替える;既存のタブを再利用する;同じ名前のタブは区別できる名前にする;タブの上にドラッグしたとき、;そのタブに切り替える;サブフォルダー チップ メニューを表示する;タブのアイコン;タブにフォルダーのアイコンを表示する;アイコンをクリックするとサブフォルダー チップ メニューを表示する;アイコンにドライブ文字を表示する;閉じるボタン;タブに閉じるボタンを表示する;Alt キーを押している間だけ;マウスを乗せたときだけ;タブ バー;タブ バーにナビゲーション ボタンを表示する;左側;右側;タブを複数行で表示する;アクティブなタブの行を常に一番下にする;現在のタブの左;現在のタブの右;一番左;一番右;左のタブ;右のタブ;一番左のタブ;一番右のタブ;最後にアクティブだったタブ;動作</value>
+  </data>
+  <data name="Options_Page03_Tweaks" xml:space="preserve">
+    <value>エクスプローラーのリスト ビューの調整を設定します。;どちらのリスト ビューでも使える調整;すべての表示モードで列見出しを表示する (Windows Vista/7);ライブラリ フォルダーで標準のファイル システム ビューを使う (Windows 7);名前の変更時に拡張子を選択しない (Windows XP);名前の変更中に F2 で選択範囲を切り替える;方向キーで選択を移動するとき、端まで来たら反対側へ回り込む;Backspace で 1 つ上へ移動する (Windows Vista/7);Shift キーを押しながらホイールを回すと横にスクロールする;古いリスト ビューでのみ使える調整;古いリスト ビュー コントロールを使う (Windows 7);詳細表示で行全体を選択する;詳細表示でグリッド線を表示する;詳細表示で行の色を交互に変える;文字の色:;背景色:</value>
+  </data>
+  <data name="Options_Page04_Tooltips" xml:space="preserve">
+    <value>サブフォルダー チップとプレビュー ツールチップの動作を変更します。;サブフォルダー チップ;サブフォルダー チップを有効にする;Shift キーを押している間だけ;ファイルを表示する;メニュー項目にマウスを乗せたときプレビューを表示する;プレビュー ツールチップ;プレビュー ツールチップを有効にする;Shift キーを押している間だけ;画像の下にファイル情報を表示する;最大の幅 x 高さ:;フォント:;テキスト ファイルの種類;画像と動画のファイルの種類</value>
+  </data>
+  <data name="Options_Page05_General" xml:space="preserve">
+    <value>QTTabBar の全般的な動作を設定します。;タスク バーとの統合;タスク バーにタブのプレビューを表示する;履歴;閉じたタブの履歴を残す;今すぐ消去;開いたファイルの履歴を残す;ネットワーク;ネットワークのタイムアウト (0 でシステムの既定値):;更新を定期的に確認する;今すぐ確認;エクスポート;設定をエクスポート...;ファイルの履歴を消去しますか?;タブの履歴を消去しますか?;サウンド;サウンドを有効にする;ログを有効にする</value>
+  </data>
+  <data name="Options_Page06_Appearance" xml:space="preserve">
+    <value>タブとタブ バーの外観を変更します。;タブの画像;カスタムのタブ画像を使う:;サイズ変更の余白:;重なり部分:;コンテンツの余白:;透明部分はクリックを通す;タブのサイズ;高さ:;最小幅:;最大幅:;サイズの決め方:;全幅;同じサイズ;タブの文字;文字の色:;影の色:;アクティブ;非アクティブ;マウスオーバー;フォント:;配置:;左揃え;中央揃え;ツール バーの背景;画像;単色;バーごとに画像を配置する;拡大の方法:;サイズ変更の余白:;スキン ファイル;スキンをインポート...;スキンをエクスポート...;拡大;原寸;並べる</value>
+  </data>
+  <data name="Options_Page07_Mouse" xml:space="preserve">
+    <value>マウス操作にコマンドを割り当てます。;割り当てを追加するには、対象の種類の左にあるプラス アイコンの上でマウス操作を行います。割り当てを削除するには、一覧で選択して Delete キーを押します。;その他のマウス オプション;マウス ホイールでカーソルの下のウィンドウをスクロールする;マウス操作;動作;すべての場所;タブ;タブ バーの背景;フォルダーのリンク;ファイルまたはフォルダー;エクスプローラーの背景;左クリック;右クリック;中クリック;ダブルクリック;X1 クリック;X2 クリック;このマウス ボタンはこの対象には使えません。;この対象に使えるマウス ボタン:;無効なボタン</value>
+  </data>
+  <data name="Options_Page08_Keys" xml:space="preserve">
+    <value>キーボード ショートカットを変更します。;一覧で動作を選択し、割り当てるキーを押します。Esc キーで割り当てを解除します。;その他のキーボード オプション;Ctrl + Tab でタブ スイッチャー ウィンドウを表示する;動作;キー;このキーは次に割り当て済みです:;割り当て直しますか?;キーの競合</value>
+  </data>
+  <data name="Options_Page09_Groups" xml:space="preserve">
+    <value>タブ グループを作成して管理します。;グループにショートカット キーを割り当てるには、グループを選択して割り当てるキーを押します。Esc キーで割り当てを解除します。;新しいグループを作成;フォルダー;起動時;ショートカット キー;新しいグループ;グループ "{0}" を開く</value>
+  </data>
+  <data name="Options_Page10_Apps" xml:space="preserve">
+    <value>よく使うファイルやアプリケーションへのショートカットを作成します。;アプリケーションにショートカット キーを割り当てるには、アプリケーションを選択して割り当てるキーを押します。Esc キーで割り当てを解除します。;新しいフォルダーを作成;パス:;引数:;作業フォルダー:;アプリケーション;ショートカット キー;次のキーワードは、実行時に二重引用符で囲まれたパスに置き換えられます。;選択したファイル。;選択したフォルダー。;選択したファイルとフォルダー。;現在のフォルダー。;何も選択していなければ現在のフォルダー、選択していれば選択したフォルダー。;新しいフォルダー;このフォルダーと中身を削除しますか?;アプリケーション "{0}" を起動</value>
+  </data>
+  <data name="Options_Page11_ButtonBar" xml:space="preserve">
+    <value>ボタン バーをカスタマイズします。;ボタン;ボタン バーのオプション;大きいアイコン;ボタンにラベルを表示する;ドロップダウン ボタンのメニューの順序を固定する;検索ボックスのサイズを固定する;ボタンの画像</value>
+  </data>
+  <data name="Options_Page12_Plugins" xml:space="preserve">
+    <value>サードパーティのプラグインを管理します。;プラグインを追加;(無効);作者: {0};{0} を削除しました。;このプラグインは、[OK] または [適用] を押すとインストールされます。;このプラグインは、[OK] または [適用] を押すと有効になります。;このプラグインは、[OK] または [適用] を押すと無効になります。;このプラグインをアンインストールすると、次のプラグインもアンインストールされます:;続行しますか?;有効にする;無効にする</value>
+  </data>
+  <data name="Options_Page13_Language" xml:space="preserve">
+    <value>言語を変更します。;メインの言語;組み込みの言語を使う:;言語ファイルを使う:;プラグインの言語ファイル;言語ファイル エディター;言語エディターを表示...;原文;翻訳;すべての項目を元の値に戻しますか?;ファイルの保存中にエラーが発生しました。;简体中文;English;German</value>
+  </data>
+  <data name="Options_Page14_About" xml:space="preserve">
+    <value>クレジットとバージョン情報を表示します。;原作: {0};主な開発者:;その他の開発者:;アイコンとグラフィック:;QTTabBar が役に立ったら、少額の寄付をご検討ください。;中国語ローカライズ:;ビルド: {0}</value>
+  </data>
+  <data name="PayPalURL" xml:space="preserve">
+    <value>https://github.com/indiff/qttabbar/blob/master/QTTabBar/Resources/wechat_pay.jpg</value>
+  </data>
+  <data name="ShortcutKeys_ActionNames" xml:space="preserve">
+    <value>戻る;進む;最初まで戻る;最後まで進む;次のタブを選択;前のタブを選択;最初のタブを選択;最後のタブを選択;最後にアクティブだったタブに切り替え;新しいタブを開く;新しいウィンドウを開く;他のウィンドウのタブを統合;現在のタブを閉じる;現在のタブ以外を閉じる;左側を閉じる;右側を閉じる;ウィンドウを閉じる;閉じたタブを元に戻す;現在のタブを複製;現在のフォルダーを新しいウィンドウで開く;現在のタブをロック / 解除;すべてのタブをロック / 解除;フォルダーの参照;新しいグループを作成;オプション ダイアログを開く;ツール バー メニューを表示;現在のタブのメニューを表示;グループ メニューを表示 (ボタン バー);最近のフォルダー メニューを表示 (ボタン バー);ユーザー アプリケーション メニューを表示 (ボタン バー);最近のファイル メニューを表示 (ボタン バー);空のファイルを新規作成;新しいフォルダーを作成;選択したファイルのパスをコピー;選択したファイルの名前をコピー;現在のフォルダーのパスをコピー;現在のフォルダーの名前をコピー;選択したファイルの MD5 を確認;ウィンドウを最前面に表示;透明度 +;透明度 -;ファイル一覧にフォーカス;検索バーにフォーカス (エクスプローラー);検索ボックスにフォーカス (ボタン バー);選択したフォルダーのサブフォルダー チップ メニューを表示;ウィンドウをタスク トレイに入れる;タブ バーにフォーカス;タブを名前で並べ替え;タブをパスで並べ替え;タブを最近使った順に並べ替え;ナビゲーション ウィンドウにフォーカス;垂直コマンド バーにフォーカス;選択した項目をタブへコピー;選択した項目をタブへ移動;フォルダーからここへファイルをコピー;フォルダーからここへファイルを移動;現在のフォルダーの名前を変更;新しいライブラリを作成;何もしない;1 つ上へ;更新;貼り付け;最大化;最小化;新しいタブで開く;新しいタブをバックグラウンドで開く;新しいウィンドウで開く;切り取り;コピー;削除;プロパティ;パスをコピー;名前をコピー;チェックサムを表示;タブを閉じる;左側のタブを閉じる;右側のタブを閉じる;1 つ上へ;ロック;コンテキスト メニューを表示;新しいウィンドウで開く;複製;パスをコピー;プロパティ;サブフォルダー チップ メニューを表示;これ以外を閉じる;CMD を開く;選択したフォルダーを新しいタブにバックグラウンドで開く;グループに追加;重複したタブを閉じる;すべて選択</value>
+  </data>
+  <data name="ShortcutKeys_Groups" xml:space="preserve">
+    <value>QTTabBar;{0} (プラグイン)</value>
+  </data>
+  <data name="SiteURL" xml:space="preserve">
+    <value>https://github.com/indiff/qttabbar</value>
+  </data>
+  <data name="TabBar_Menu" xml:space="preserve">
+    <value>閉じる;右側を閉じる;左側を閉じる;これ以外を閉じる;グループに追加;新しいグループを作成;ロック;タブを複製;新しいウィンドウ;パスをコピー;プロパティ;タブの履歴;グループ;閉じたタブを元に戻す;最後にアクティブだったタブ;最近開いたファイル;フォルダーの参照;現在のタブ以外を閉じる;ウィンドウを閉じる;オプション;ロック解除;アプリケーション メニューに追加 : ;項目;キャンセル;分岐した履歴;この項目をメニューから削除;ファイルの場所を開く(&amp;P);タブのラベル;タブの順序;名前;パス;アクティブ順;ツール バーを固定する;他のウィンドウのタブを統合;順序を反転;CMD を開く</value>
+  </data>
+  <data name="TabBar_Message" xml:space="preserve">
+    <value>QTTabBar は次を開けませんでした。
+
+ "{0}"</value>
+  </data>
+  <data name="TabBar_NewGroup" xml:space="preserve">
+    <value>新しいグループを作成;グループ名:;すべてのタブを追加</value>
+  </data>
+  <data name="TabBar_Option_Genre" xml:space="preserve">
+    <value>ウィンドウ;タブ;調整;ツールチップ;全般;外観;マウス;キー;グループ;アプリケーション;ボタン バー;プラグイン;言語;バージョン情報</value>
+  </data>
+  <data name="TaskBar_Menu" xml:space="preserve">
+    <value>タスク バー;デスクトップ;項目をロック;タイトルの背景を描画;1 クリックでメニューを開く;アプリケーションのショートカット キーを有効にする</value>
+  </data>
+  <data name="TaskBar_Titles" xml:space="preserve">
+    <value>グループ;閉じたタブを元に戻す;アプリケーション;最近開いたファイル</value>
+  </data>
+  <data name="TrayIcon" xml:space="preserve">
+    <value>1 個のウィンドウ;{0} 個のウィンドウ;すべて復元;すべて閉じる</value>
+  </data>
+  <data name="UpdateCheck" xml:space="preserve">
+    <value>QTTabBar の新しいバージョンが公開されました:;[OK] を押すと Web サイトへ移動します。;QTTabBar は最新の状態です。;新しい開発版が見つかりました:;バージョン ファイルが見つかりません (404)。;不明なネットワーク エラーです。;サーバーが見つかりません。;サーバーから不正な文字列が返されました。</value>
+  </data>
+  <data name="Version_LangFile" xml:space="preserve">
+    <value>1.0</value>
+  </data>
+  <data name="Version_QTTabBar" xml:space="preserve">
+    <value>DevBuild: 2022/8/15 19:01:42 (2.0.50727.9164)</value>
+  </data>
+</root>

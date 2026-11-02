@@ -145,7 +145,7 @@ namespace QTTabBarLib {
                     button.DropDownItems.AddRange(tabBar.CreateBranchMenu(true, components, navBranchRoot_DropDownItemClicked).ToArray());
                 }
                 else {
-                    ToolStripMenuItem item = new ToolStripMenuItem("none");
+                    ToolStripMenuItem item = new ToolStripMenuItem(QTUtility.IsJapanese ? "(なし)" : "none");
                     item.Enabled = false;
                     button.DropDownItems.Add(item);
                 }

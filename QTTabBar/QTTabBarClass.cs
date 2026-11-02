@@ -4960,7 +4960,7 @@ namespace QTTabBarLib {
                     /** add by qwop 2012-07-13.*/
                     int len = QTUtility.ResMain.Length;
                     tsmiOpenCmd = new ToolStripMenuItem(QTUtility.ResMain[len - 1]);
-                    enableApiHook = new ToolStripMenuItem("Enable Image Hook");
+                    enableApiHook = new ToolStripMenuItem(QTUtility.IsJapanese ? "画像フックを有効にする" : "Enable Image Hook");
                     /** add by qwop 2012-07-13.*/
 
 
@@ -5833,7 +5833,7 @@ namespace QTTabBarLib {
                 buttonNavHistoryMenu.DropDownItems.AddRange(CreateBranchMenu(true, components, tsmiBranchRoot_DropDownItemClicked).ToArray());
             }
             else {
-                ToolStripMenuItem item = new ToolStripMenuItem("none");
+                ToolStripMenuItem item = new ToolStripMenuItem(QTUtility.IsJapanese ? "(なし)" : "none");
                 item.Enabled = false;
                 buttonNavHistoryMenu.DropDownItems.Add(item);
             }

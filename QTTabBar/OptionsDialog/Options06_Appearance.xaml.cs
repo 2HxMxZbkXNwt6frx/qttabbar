@@ -39,6 +39,10 @@ namespace QTTabBarLib {
 
             // Config._Skin.TabTitleScroll order.
             bool ja = QTUtility.IsJapanese;
+            if(ja) {
+                SkinAutoColorChangeClose.Content = "配色固定";
+                miToolBarTextColor.Header = "ツール バーの文字色";
+            }
             lblTabTitleScroll.Content = ja ? "長いタイトル:" : "Long titles:";
             string[] scrollModes = ja
                     ? new[] { "省略する (…)", "マウスを乗せるとスクロール", "常にスクロール" }
@@ -121,7 +125,7 @@ namespace QTTabBarLib {
         private void btnImportSkin_Click(object sender, RoutedEventArgs e)
         {
             // Import skin.
-            System.Windows.MessageBox.Show("Double-click the registry file to import it directly");
+            System.Windows.MessageBox.Show(QTUtility.IsJapanese ? "レジストリ ファイルをダブルクリックすると直接インポートできます" : "Double-click the registry file to import it directly");
         }
 
         private void btnExportSkin_Click(object sender, RoutedEventArgs e)

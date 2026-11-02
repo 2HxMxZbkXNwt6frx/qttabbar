@@ -776,7 +776,18 @@ namespace QTTabBarLib {
             }
         }
 
+        // Config._Lang.BuiltInLangSelectedIndex of the Japanese strings.
+        internal const int LangIndexJapanese = 8;
+
+        // Text set in code follows QTTabBar's language like the built-in strings; with a language
+        // file, the language of Windows.
         public static bool IsJapanese
+        {
+            get { return Config.Lang.UseLangFile ? IsJapaneseWindows : Config.Lang.BuiltInLangSelectedIndex == LangIndexJapanese; }
+        }
+
+        // For what runs without settings: COM registration, the default font.
+        public static bool IsJapaneseWindows
         {
             get { return CultureInfo.CurrentUICulture.Name == "ja-JP"; }
         }
@@ -790,7 +801,7 @@ namespace QTTabBarLib {
         {
             get
             {
-                return IsJapanese && IsWindows10AndLater ? "Yu Gothic UI" : "Arial";
+                return IsJapaneseWindows && IsWindows10AndLater ? "Yu Gothic UI" : "Arial";
             }
         }
 
@@ -1121,6 +1132,7 @@ namespace QTTabBarLib {
                 case 5: keyValuePairs = Resources_String_fr_FR.ResourceManager.GetResourceStrings(); break;
                 case 6: keyValuePairs = Resources_String_tr_TR.ResourceManager.GetResourceStrings(); break;
                 case 7: keyValuePairs = Resources_String_ru_RU.ResourceManager.GetResourceStrings(); break;
+                case LangIndexJapanese: keyValuePairs = Resources_String_ja_JP.ResourceManager.GetResourceStrings(); break;
             }
 
             // If empty, get the default application language

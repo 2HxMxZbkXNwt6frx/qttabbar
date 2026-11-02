@@ -19,6 +19,13 @@ namespace QTTabBarLib {
     internal partial class Options01_Window : OptionsDialogTab {
         public Options01_Window() {
             InitializeComponent();
+            if(QTUtility.IsJapanese) {
+                lblOthers.Content = "その他";
+                ctxShowFailNavMsg.Content = "移動に失敗したときメッセージを表示する";
+                ctxCaptureWeChatSelection.Content = "ファイルの選択も引き継ぐ (WeChat/QQ/DingDing)";
+                ctxOpenExplorerMaximized.Content = "エクスプローラー ウィンドウを最大化して開く";
+                ctxAutoEnableExperimental.Content = "すべてのエクスプローラー ウィンドウで QTTabBar を有効にする (実験的、エクスプローラーの再起動が必要)";
+            }
             // Windows 10 still has a real toolbar rebar - QTTabBar/QTButtonBar are
             // enabled individually through Explorer's own View > Toolbars menu there,
             // same as any other classic toolband, so there's nothing for this toggle to
