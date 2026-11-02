@@ -60,8 +60,8 @@
                 <Style TargetType="{x:Type Button}" BasedOn="{StaticResource {x:Type Button}}">
                     <Setter Property="Height" Value="22"/>
                     <Setter Property="Margin" Value="3,0"/>
-                    <Setter Property="Padding" Value="0"/>
-                    <Setter Property="Width" Value="75"/>
+                    <Setter Property="Padding" Value="6,0"/>
+                    <Setter Property="MinWidth" Value="75"/>
                 </Style>
             </DockPanel.Resources>
             <StackPanel
