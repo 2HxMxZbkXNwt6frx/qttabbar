@@ -380,7 +380,10 @@ namespace QTTabBarLib {
             // Log for easier debugging
             QTUtility2.log(  "QTTabBarClass AddStartUpTabs openingGRP "  + openingGRP + " openingPath " + openingPath);
             // Skip auto-opening group tabs if Shift is held or another instance already exists
-            if(ModifierKeys == Keys.Shift || InstanceManager.GetTotalInstanceCount() != 0) return;
+            // "Another instance" is a tabbed window in any Explorer process, not only in this one.
+            IntPtr hwndOtherFrame;
+            if(ModifierKeys == Keys.Shift || InstanceManager.GetTotalInstanceCount() != 0
+                    || InstanceManager.FindOtherTabBarWindow(ExplorerHandle, false, out hwndOtherFrame) != IntPtr.Zero) return;
             // Walk every group marked "open on startup", excluding the current group
             List<string> startupPaths = GroupsManager.Groups.Where(g => g.Startup && openingGRP != g.Name).SelectMany(g => g.Paths).ToList();
             Dictionary<string, NetworkLookup> network = LookUpNetworkFolders(startupPaths);
@@ -1146,6 +1149,7 @@ namespace QTTabBarLib {
                     subDirTip_Tab = null;
                 }
                 if(IsShown) {
+                    ReopenTabsAfterControlPanel();
                     if(pluginServer != null) {
                         pluginServer.Dispose();
                         pluginServer = null;
@@ -1207,6 +1211,7 @@ namespace QTTabBarLib {
                             QTUtility2.WriteRegBinary(list, "TabsLocked", key);
                         }
 
+                        InstanceManager.UnmarkTabBarWindow(ExplorerHandle);
                         InstanceManager.UnregisterTabBar();
                         if(0x80000 != ((int)PInvoke.Ptr_OP_AND(PInvoke.GetWindowLongPtr(ExplorerHandle, -20), 0x80000))) {
                             QTUtility.WindowAlpha = 0xff;
@@ -1833,6 +1838,19 @@ namespace QTTabBarLib {
         }
 
         private bool fCapturedWindowClosed;
+
+        // In case Quit did not end a window that was hidden for it.
+        private void CloseQuittingWindowLater() {
+            Timer timer = new Timer { Interval = 2000 };
+            timer.Tick += (sender, args) => {
+                timer.Stop();
+                timer.Dispose();
+                if(IsDisposed || !PInvoke.IsWindow(ExplorerHandle)) return;
+                QTUtility2.log("captured window: still there after Quit, closing");
+                WindowUtils.CloseExplorer(ExplorerHandle, 2, true);
+            };
+            timer.Start();
+        }
 
         // A window whose folder was handed to another window's new tab closes itself from
         // ListView_SelectionChanged, which some views never raise (an empty folder, a slow view):
@@ -2585,15 +2603,33 @@ namespace QTTabBarLib {
         // This function fires on BeforeNavigate2 (on XP and Vista)
         // or NavigateComplete2 (on 7)
         private void DoFirstNavigation(bool before, string path) {
+            if(fNowQuitting) return;    // handed over already, the window is on its way out
+            fControlPanelWindow = QTUtility2.IsControlPanelPath(path);
+            if(fControlPanelWindow) {
+                // Tabs would not survive in it (ReopenTabsAfterControlPanel), and what is waiting for
+                // the next folder window (CreateWindowPaths, SkipNextCapture) is not meant for it.
+                InitializeOpenedWindow();
+                return;
+            }
             // TODO: sort out this mess - this is a legacy issue
             if(StaticReg.CreateWindowPaths.Count > 0 || StaticReg.CreateWindowIDLs.Count > 0) {
                 QTUtility2.log("DoFirstNavigation StaticReg.CreateWindowPaths.Count " + StaticReg.CreateWindowPaths.Count + " StaticReg.CreateWindowIDLs.Count:" + StaticReg.CreateWindowIDLs.Count);
-                foreach (string tpath in StaticReg.CreateWindowPaths.Where(str2 => !str2.PathEquals(path))) {
+                // This window's own folder may not be the first of them (a window opened again).
+                int ownIndex = 0, created = 0;
+                foreach (string tpath in StaticReg.CreateWindowPaths) {
+                    if(tpath.PathEquals(path)) {
+                        ownIndex = created;
+                        continue;
+                    }
                     using(IDLWrapper wrapper = new IDLWrapper(tpath)) {
                         if(wrapper.Available) {
                             CreateNewTab(wrapper);
+                            created++;
                         }
                     }
+                }
+                if(ownIndex > 0 && ownIndex < tabControl1.TabCount) {
+                    tabControl1.TabPages.Relocate(0, ownIndex);
                 }
                 foreach(byte[] idl in StaticReg.CreateWindowIDLs) {
                     using(IDLWrapper wrapper2 = new IDLWrapper(idl)) {
@@ -2601,7 +2637,15 @@ namespace QTTabBarLib {
                     }
                 }
                 QTUtility2.InitializeTemporaryPaths();
-                AddStartUpTabs(string.Empty, path);
+                // Opened on purpose with these tabs: nothing is added to them. (The flag used to
+                // stay set here, and the folder window opened next was then not captured.)
+                if(StaticReg.SkipNextCapture) {
+                    StaticReg.SkipNextCapture = false;
+                    MoveToRequestedPlace();
+                }
+                else {
+                    AddStartUpTabs(string.Empty, path);
+                }
                 InitializeOpenedWindow();
             }
             else if(StaticReg.CreateWindowGroup.Length != 0) {
@@ -2617,8 +2661,16 @@ namespace QTTabBarLib {
             else if(!Config.Window.CaptureNewWindows || StaticReg.SkipNextCapture)
             {
                 QTUtility2.log("DoFirstNavigation !Config.Window.CaptureNewWindows || StaticReg.SkipNextCapture");
+                // A window opened on purpose (Open in new window, a tab dropped outside its window)
+                // holds what was asked for and nothing else.
+                bool fOpenedOnPurpose = StaticReg.SkipNextCapture;
                 StaticReg.SkipNextCapture = false;
-                AddStartUpTabs(string.Empty, path);
+                if(fOpenedOnPurpose) {
+                    MoveToRequestedPlace();
+                }
+                else {
+                    AddStartUpTabs(string.Empty, path);
+                }
                 InitializeOpenedWindow();
             }
             else if(path.StartsWith(QTUtility.ResMisc[0]) ||
@@ -2689,75 +2741,17 @@ namespace QTTabBarLib {
                 // Explorer.Quit, which closes the whole window with every native tab in it.
                 bool nativeTabOfOpenWindow = ExplorerHandle != IntPtr.Zero && InstanceManager.HasOtherTabBarInFrame(this, ExplorerHandle);
                 if(nativeTabOfOpenWindow) QTUtility2.log("DoFirstNavigation: native tab of an open window, not captured");
+                // The window that takes the folder: the tabbed window used last, in whichever
+                // Explorer process it lives. With none in sight (hidden in the tray), the instances
+                // known over the WCF channel are asked as before.
+                IntPtr hwndTargetFrame;
+                IntPtr hwndTarget = InstanceManager.FindOtherTabBarWindow(ExplorerHandle, true, out hwndTargetFrame);
                 if (IsTabBarDocked &&
                     !nativeTabOfOpenWindow &&
                     Config.Window.CaptureNewWindows &&
                     ModifierKeys != Keys.Control &&
-                    InstanceManager.GetTotalInstanceCount() > 0) {
-                    string cmd = GetCommandLine();
-                    if (!String.IsNullOrEmpty(cmd))
-                    {
-                        /*string dirPath, selection;
-                        if (TryParseCommandlineParams(cmd, out dirPath, out selection))
-                        {
-                            if (!string.IsNullOrEmpty(selection))
-                            {
-                                QTUtility2.log(string.Format("********* TryParseCommandlineParams {0} ", selection));
-                            }
-                        }*/
-
-                        string lcmd = cmd.ToLower();
-                        if (lcmd.Contains("/select") || lcmd.Contains(",select"))
-                        {
-                            mCmdType = 1;
-                            string selectMe = GetNameToSelectFromCommandLineArg(cmd);
-                            TimeSpan start = new TimeSpan(DateTime.Now.Ticks);
-                            InstanceManager.BeginInvokeMain(tabbar =>
-                            {
-                                tabbar.OpenNewTab(path);
-                                if (selectMe != "")
-                                {
-                                    tabbar.ShellBrowser.TrySetSelection(
-                                          new Address[] { new Address(selectMe) }, null, true);
-                                }
-                                
-                                tabbar.RestoreWindow();
-                                TimeSpan abs = new TimeSpan(DateTime.Now.Ticks).Subtract(start).Duration();
-                                QTUtility2.log(string.Format("select cmd BeginInvokeMain cost {0} ", abs.TotalMilliseconds));
-                            });
-                        }
-                        else if (lcmd.Contains("/factory")   ||
-                                 lcmd.Contains("-embedding") ||
-                                 lcmd.Contains("{75dff2b7-6936-4c06-a8bb-676a7b00b24b}"))
-                        {
-                            mCmdType = 2;
-                            TimeSpan start = new TimeSpan(DateTime.Now.Ticks);
-                            InstanceManager.BeginInvokeMain(tabbar =>
-                            {
-                                tabbar.OpenNewTab(path);
-                                tabbar.RestoreWindow();
-                                if (Config.Window.CaptureWeChatSelection)
-                                {
-                                    tabbar.Wait4Select();
-                                }
-                                TimeSpan abs = new TimeSpan(DateTime.Now.Ticks).Subtract(start).Duration();
-                                QTUtility2.log(string.Format("factory cmd BeginInvokeMain cost {0} ", abs.TotalMilliseconds));
-                            });
-                        }
-                        else
-                        {
-                            mCmdType = 3;
-                            InstanceManager.BeginInvokeMain(tabbar =>
-                            {
-                                // vscode opens using the same process, so a shell command is needed
-                                tabbar.OpenNewTab(path);
-                                QTUtility2.log("other cmd BeginInvokeMain RestoreWindow");
-                                tabbar.RestoreWindow();
-                                // tabbar.Wait4Select(); // intellij idea / vs code waiting to be selected
-                            });
-                        }
-                    }
-
+                    (hwndTarget != IntPtr.Zero || InstanceManager.GetTotalInstanceCount() > 0) &&
+                    HandOverToOtherWindow(hwndTarget, hwndTargetFrame, path)) {
                     fNowQuitting = true;
                     if (QTUtility.IsXP)
                     {
@@ -2778,6 +2772,16 @@ namespace QTTabBarLib {
                         {
                             QTUtility2.log("Close Explorer Explorer.Quit");
                             Explorer.Quit();
+                            if(mCmdType != 3) {
+                                // A window in an Explorer process of its own (a folder opened by
+                                // another program): Quit ends it, but only some hundred ms later.
+                                // Out of sight at once, and nothing more is set up in it: hooks,
+                                // plugins, buttons and the list view were all made for a window
+                                // that was already going.
+                                WindowUtils.HideExplorer(ExplorerHandle);
+                                CloseQuittingWindowLater();
+                                return;
+                            }
                             // WindowUtils.HideExplorer(ExplorerHandle);
                             // WindowUtils.CloseExplorer(ExplorerHandle, 0);
                         }
@@ -3429,14 +3433,13 @@ namespace QTTabBarLib {
                 }
                 else {
                     QTUtility2.log("explorerController_MessageCaptured PInvoke.ILClone: ");
-                    var commandLine = GetCommandLine();
                     IntPtr pidl = IntPtr.Zero;
                     if(msg.LParam != IntPtr.Zero) {
                         pidl = PInvoke.ILClone(msg.LParam);
                     }
                     bool autonav = (flags & SBSP.AUTONAVIGATE) != 0;
                     using(IDLWrapper wrapper = new IDLWrapper(pidl)) {
-                        msg.Result = (IntPtr)(BeforeNavigate(wrapper, autonav) ? 1 : 0);
+                        msg.Result = (IntPtr)(OpenControlPanelApart(wrapper, flags) || BeforeNavigate(wrapper, autonav) ? 1 : 0);
                     }
                 }
                 return true;
@@ -3539,7 +3542,12 @@ namespace QTTabBarLib {
                         return true;
                     }
                     iSequential_WM_CLOSE++;
-                    return HandleCLOSE(msg.LParam);
+                    if(HandleCLOSE(msg.LParam)) {
+                        return true;
+                    }
+                    // Closed the regular way (see ReopenTabsAfterControlPanel).
+                    fClosedByMessage = true;
+                    return false;
 
                 case WM.NCMBUTTONDOWN:
                 case WM.NCXBUTTONDOWN:
@@ -3743,44 +3751,9 @@ namespace QTTabBarLib {
         /**
          * Does new override the restart?
          */
-        private  static string GetCommandLine()
+        private static string GetCommandLine()
         {
-            Process cprocess = Process.GetCurrentProcess();
-            
-            int currentProcessId2 = cprocess.Id;
-
-            int currentProcessId = (int)PInvoke.GetCurrentProcessId();
-            var process = Process.GetProcessById( currentProcessId );
-            QTUtility2.log(" process command line 0 : " + cprocess.StartInfo.Arguments);
-            QTUtility2.log(" process command line 1 : " + process.StartInfo.Arguments);
-            
-
-            string result = null;
-            try
-            {
-                var cpid = currentProcessId;
-                if (currentProcessId2 != currentProcessId)
-                {
-                    cpid = currentProcessId2;
-                }
-                string wmiQuery = string.Format("select CommandLine from Win32_Process where ProcessID ={0}", cpid);
-                ManagementObjectSearcher managementObjectSearcher =
-                    new ManagementObjectSearcher(wmiQuery);
-                ManagementObjectCollection managementObjectCollection = managementObjectSearcher.Get();
-                
-                foreach (ManagementObject managementObject in managementObjectCollection.Cast<ManagementObject>())
-                {
-                    result = managementObject["CommandLine"] == null ? "" : managementObject["CommandLine"].ToString();
-                }
-                QTUtility2.log(" process command line 3 : " + result);
-            }
-            catch (Exception ex)
-            {
-                result = "";
-            }
-            string str = Marshal.PtrToStringUni(PInvoke.GetCommandLine());
-            QTUtility2.log(" process command line 2 : " + str);
-            return str;
+            return Marshal.PtrToStringUni(PInvoke.GetCommandLine());
         }
 
         private static string GetNameToSelectFromCommandLineArg(string str) {
@@ -4692,6 +4665,7 @@ namespace QTTabBarLib {
             tabControl1.MouseDown += tabControl1_MouseDown;
             tabControl1.MouseUp += tabControl1_MouseUp;
             tabControl1.MouseMove += tabControl1_MouseMove;
+            tabControl1.MouseCaptureChanged += tabControl1_MouseCaptureChanged;
             tabControl1.MouseDoubleClick += tabControl1_MouseDoubleClick;
             tabControl1.ItemDrag += tabControl1_ItemDrag;
             tabControl1.PointedTabChanged += tabControl1_PointedTabChanged;
@@ -4800,7 +4774,12 @@ namespace QTTabBarLib {
             // window that is itself being merged into another (fNowQuitting) still initializes here
             // (it needs its list view to close itself), but must not become that target, or the
             // folders opened next go to a window that is about to close and their tabs are lost.
-            if(!fNowQuitting) InstanceManager.PushTabBarInstance(this);
+            if(!fNowQuitting) {
+                InstanceManager.PushTabBarInstance(this);
+                // Tabs show only in a docked bar: only such a window can take another window's folder.
+                // A Control Panel window cannot: Explorer would move it to another process for it.
+                if(IsTabBarDocked && !fControlPanelWindow) InstanceManager.MarkTabBarWindow(ExplorerHandle, Handle);
+            }
             // Explorer doesn't reopen custom vertical bars in new windows (see QTCommandBarVertical).
             if(!fNowQuitting && Config.CmdBars.VerticalBarVisible && Explorer != null) {
                 BeginInvoke(new MethodInvoker(() => QTCommandBarVertical.ShowInWindow(Explorer)));
@@ -6087,6 +6066,16 @@ namespace QTTabBarLib {
                     return false;
                 }
 
+                // A tab cannot hold a Control Panel page in a folder window (OpenControlPanelApart).
+                if(IsTabBarDocked && QTUtility2.IsControlPanelPath(idlw.Path)) {
+                    using(IDLWrapper current = ShellBrowser.GetShellPath()) {
+                        if(current.Available && !QTUtility2.IsControlPanelPath(current.Path)) {
+                            OpenWindowApart(idlw.IDL);
+                            return false;
+                        }
+                    }
+                }
+
                 if(blockSelecting) {
                     NowTabsAddingRemoving = true;
                 }
@@ -6180,11 +6169,11 @@ namespace QTTabBarLib {
             }
         }
 
-        internal void OpenNewWindow(IDLWrapper idlwGiven) {
+        internal bool OpenNewWindow(IDLWrapper idlwGiven) {
             // Check that the folder exists and is navigable.
             if(idlwGiven == null || !idlwGiven.Available || !idlwGiven.HasPath || !idlwGiven.IsReadyIfDrive || idlwGiven.IsLinkToDeadFolder) {
                 QTUtility.SoundPlay();
-                return;
+                return false;
             }
             
             // If the IDL is a link, resolve it.  Otherwise keep using the one we're given.
@@ -6194,7 +6183,7 @@ namespace QTTabBarLib {
                 // Recheck a few things
                 if(!idlw.Available || !idlw.HasPath || !idlw.IsReadyIfDrive || !idlw.IsFolder) {
                     QTUtility.SoundPlay();
-                    return;
+                    return false;
                 }
 
                 bool isFolderTreeVisible = ShellBrowser.IsFolderTreeVisible();    
@@ -6238,8 +6227,11 @@ namespace QTTabBarLib {
                     }
                     StaticReg.CreateWindowGroup = string.Empty;
                     StaticReg.SkipNextCapture = false;
+                    QTUtility.fRestoreFolderTree = false;
+                    return false;
                 }
                 QTUtility.fRestoreFolderTree = false;
+                return true;
             }
         }
 
@@ -7348,9 +7340,26 @@ namespace QTTabBarLib {
             }
         }
 
+        // The click that selects a tab starts a navigation, and the mouse capture is gone when the
+        // new view comes up. A tab that is still being dragged takes it back: without it the tab
+        // could not be followed out of the bar.
+        private int tabDragRecaptures;
+
+        private void tabControl1_MouseCaptureChanged(object sender, EventArgs e) {
+            if(tabControl1.Capture || !NowTabDragging || DraggingTab == null || tabControl1.TabCount < 2
+                    || MouseButtons != MouseButtons.Left || tabDragRecaptures >= 4) return;
+            tabDragRecaptures++;
+            BeginInvoke(new MethodInvoker(() => {
+                if(NowTabDragging && DraggingTab != null && MouseButtons == MouseButtons.Left && !tabControl1.IsDisposed) {
+                    tabControl1.Capture = true;
+                }
+            }));
+        }
+
         private void tabControl1_MouseDown(object sender, MouseEventArgs e) {
             QTabItem tabMouseOn = tabControl1.GetTabMouseOn();
             DraggingTab = null;
+            tabDragRecaptures = 0;
             if(tabMouseOn != null) {
                 if(e.Button == MouseButtons.Left) {
                     NowTabDragging = true;
@@ -7377,14 +7386,24 @@ namespace QTTabBarLib {
         private void tabControl1_MouseMove(object sender, MouseEventArgs e) {
             RECT rect;
             if((tabControl1.Capture && (((e.X < 0) || (e.Y < 0)) || ((e.X > tabControl1.Width) || (e.Y > tabControl1.Height)))) && (PInvoke.GetWindowRect(ReBarHandle, out rect) && !PInvoke.PtInRect(ref rect, tabControl1.PointToScreen(e.Location)))) {
-                Cursor = Cursors.Default;
-                tabControl1.Capture = false;
+                // A tab that is being dragged stays in hand outside the bar: dropped outside the
+                // window, it leaves this window (tabControl1_MouseUp).
+                if(NowTabDragging && DraggingTab != null && MouseButtons == MouseButtons.Left && tabControl1.TabCount > 1) {
+                    Cursor = IsOutsideWindow(MousePosition) ? GetCursor(true) : Cursors.No;
+                }
+                else {
+                    Cursor = Cursors.Default;
+                    tabControl1.Capture = false;
+                }
             }
             else if((NowTabDragging && (DraggingTab != null)) && ((ModifierKeys & Keys.Shift) != Keys.Shift)) {
-                if(Explorer.Busy || (MouseButtons != MouseButtons.Left)) {
+                if(MouseButtons != MouseButtons.Left) {
                     NowTabDragging = false;
                     // Leave DraggingTab set so MouseUp doesn't get confused.
                     // It will be unset in MouseUp.
+                }
+                else if(Explorer.Busy) {
+                    // The tab that was just clicked is still loading: the drag goes on after that.
                 }
                 else {
                     int num;
@@ -7468,6 +7487,10 @@ namespace QTTabBarLib {
                         if(cloning) {
                             CloneTabButton(DraggingTab, null, false, tabControl1.TabCount);
                         }
+                    }
+                    else if(DraggingTab != null && modifierKeys == Keys.None && tabControl1.TabCount > 1
+                            && !Explorer.Busy && IsOutsideWindow(MousePosition)) {
+                        TearOffTab(DraggingTab, MousePosition);
                     }
                 } 
                 else if(tabMouseOn == DraggingTab && DraggingDestRect == Rectangle.Empty) {
@@ -7867,6 +7890,13 @@ namespace QTTabBarLib {
                         HandleFileDrop(m.WParam);
                         break;
 
+                    case WM.COPYDATA:
+                        if(HandleOpenTabRequest(m.LParam)) {
+                            m.Result = (IntPtr)1;
+                            return;
+                        }
+                        break;
+
                     case WM.DRAWITEM:
                     case WM.MEASUREITEM:
                     case WM.INITMENUPOPUP:
@@ -7880,6 +7910,261 @@ namespace QTTabBarLib {
             catch(Exception ex) {
                 QTUtility2.MakeErrorLog(ex, String.Format("Message: {0:x4}", m.Msg));
             }
+        }
+
+        // Another Explorer window, possibly in another process, hands its folder over
+        // (InstanceManager.SendOpenTab). The sender waits for the answer, so the tab opens after it.
+        private bool HandleOpenTabRequest(IntPtr lParam) {
+            COPYDATASTRUCT cds = (COPYDATASTRUCT)Marshal.PtrToStructure(lParam, typeof(COPYDATASTRUCT));
+            if(cds.dwData != InstanceManager.OpenTabRequest || cds.lpData == IntPtr.Zero || cds.cbData < 2) return false;
+            if(fNowQuitting || !IsShown || !IsTabBarDocked || fControlPanelWindow) return false;
+            string[] request = Marshal.PtrToStringUni(cds.lpData, cds.cbData / 2).TrimEnd('\0').Split('\n');
+            if(request.Length != 3 || request[1].Length == 0) return false;
+            bool fWaitForSelection = request[0] == "1";
+            string path = request[1], nameToSelect = request[2];
+            BeginInvoke(new MethodInvoker(() => {
+                OpenNewTab(path);
+                if(nameToSelect.Length > 0) {
+                    ShellBrowser.TrySetSelection(new Address[] { new Address(nameToSelect) }, null, true);
+                }
+                RestoreWindow();
+                if(fWaitForSelection) Wait4Select();
+            }));
+            return true;
+        }
+
+        // Hands this new window's folder to a window that is already open, where it becomes a tab.
+        // False if no window took it: this one then stays as it is.
+        private bool HandOverToOtherWindow(IntPtr hwndTabBar, IntPtr hwndFrame, string path) {
+            string cmd = GetCommandLine() ?? string.Empty;
+            string lcmd = cmd.ToLower();
+            string selectMe = string.Empty;
+            if(lcmd.Contains("/select") || lcmd.Contains(",select")) {
+                mCmdType = 1;
+                selectMe = GetNameToSelectFromCommandLineArg(cmd);
+            }
+            else if(lcmd.Contains("/factory") || lcmd.Contains("-embedding") || lcmd.Contains("{75dff2b7-6936-4c06-a8bb-676a7b00b24b}")) {
+                mCmdType = 2;
+            }
+            else {
+                // vscode and others open folders through the shell process itself
+                mCmdType = 3;
+            }
+            bool fWaitForSelection = mCmdType == 2 && Config.Window.CaptureWeChatSelection;
+
+            if(hwndTabBar != IntPtr.Zero) {
+                if(!InstanceManager.SendOpenTab(hwndTabBar, path, selectMe, fWaitForSelection)) return false;
+                // What the user just did opened this window, so it may pass the foreground on.
+                PInvoke.SetForegroundWindow(hwndFrame);
+                return true;
+            }
+            InstanceManager.BeginInvokeMain(tabbar => {
+                tabbar.OpenNewTab(path);
+                if(selectMe.Length > 0) {
+                    tabbar.ShellBrowser.TrySetSelection(new Address[] { new Address(selectMe) }, null, true);
+                }
+                tabbar.RestoreWindow();
+                if(fWaitForSelection) tabbar.Wait4Select();
+            });
+            return true;
+        }
+
+        // The first folder of this window is under Control Panel: it lives in the Control Panel host.
+        private bool fControlPanelWindow;
+        // The Explorer window got a WM_CLOSE that was let through.
+        private bool fClosedByMessage;
+        // explorer.exe /factory,{this} -Embedding: the process that shows Control Panel pages.
+        private const string ControlPanelHost = "{5BD95610-9434-43C2-886C-57852CC8A120}";
+
+        // Explorer shows the pages under Control Panel in a process of their own. A folder window
+        // that is sent to one (address bar, a link, the navigation pane) is not navigated: Explorer
+        // opens a new window in that process, in the same place, and destroys this one without a
+        // WM_CLOSE, with all its tabs. Without the native hook nothing here can stop that, so on
+        // the way out the tabs are opened again in a new folder window in this place, and the
+        // Control Panel window is moved aside. Told apart from other ends by that window: same
+        // rectangle, in the Control Panel host.
+        private void ReopenTabsAfterControlPanel() {
+            try {
+                RECT rect;
+                if(fClosedByMessage || fNowQuitting || fControlPanelWindow || !IsTabBarDocked) return;
+                if(tabControl1.TabCount < 2 || !PInvoke.GetWindowRect(ExplorerHandle, out rect)) return;
+                List<string> paths = (from QTabItem tab in tabControl1.TabPages
+                                      where !string.IsNullOrEmpty(tab.CurrentPath) && !QTUtility2.IsControlPanelPath(tab.CurrentPath)
+                                      select tab.CurrentPath).ToList();
+                if(paths.Count == 0) return;
+                string first = CurrentTab != null && paths.Contains(CurrentTab.CurrentPath) ? CurrentTab.CurrentPath : paths[0];
+                IntPtr hwndSelf = ExplorerHandle;
+                if(ReopenTabsIfReplaced(hwndSelf, rect, paths, first)) return;
+                // The new window is usually there by now, but not always: it gets a little time.
+                // Nothing below touches this window or its controls.
+                Thread thread = new Thread(() => {
+                    try {
+                        for(int i = 0; i < 20; i++) {
+                            Thread.Sleep(150);
+                            if(ReopenTabsIfReplaced(hwndSelf, rect, paths, first)) return;
+                        }
+                    }
+                    catch(Exception ex) {
+                        QTUtility2.MakeErrorLog(ex, "ReopenTabsAfterControlPanel");
+                    }
+                }) { IsBackground = true };
+                thread.Start();
+            }
+            catch(Exception ex) {
+                QTUtility2.MakeErrorLog(ex, "ReopenTabsAfterControlPanel");
+            }
+        }
+
+        private static bool ReopenTabsIfReplaced(IntPtr hwndSelf, RECT rect, List<string> paths, string first) {
+            uint pidSelf = PInvoke.GetCurrentProcessId();
+            IntPtr hwndNew = IntPtr.Zero;
+            uint pidNew = 0;
+            PInvoke.EnumWindows((hwnd, lParam) => {
+                uint pid;
+                RECT r;
+                if(hwnd == hwndSelf || PInvoke.GetClassName(hwnd) != "CabinetWClass" || !PInvoke.GetWindowRect(hwnd, out r)) return true;
+                PInvoke.GetWindowThreadProcessId(hwnd, out pid);
+                if(pid == pidSelf || r.left != rect.left || r.top != rect.top || r.right != rect.right || r.bottom != rect.bottom) return true;
+                hwndNew = hwnd;
+                pidNew = pid;
+                return false;
+            }, IntPtr.Zero);
+            if(hwndNew == IntPtr.Zero) return false;
+
+            string commandLine = string.Empty;
+            using(ManagementObjectSearcher searcher = new ManagementObjectSearcher("select CommandLine from Win32_Process where ProcessId = " + pidNew))
+            using(ManagementObjectCollection processes = searcher.Get()) {
+                foreach(ManagementBaseObject process in processes) {
+                    commandLine = (process["CommandLine"] as string) ?? string.Empty;
+                }
+            }
+            if(commandLine.IndexOf(ControlPanelHost, StringComparison.OrdinalIgnoreCase) < 0) return false;
+            QTUtility2.flog("Explorer moved this window to the Control Panel host (pid " + pidNew + "): opening its " + paths.Count + " tabs again");
+
+            const int SWP_NOSIZE = 1, SWP_NOZORDER = 4, SWP_NOACTIVATE = 0x10;
+            if(!PInvoke.IsZoomed(hwndNew)) {
+                int step = SystemInformation.CaptionHeight + SystemInformation.FrameBorderSize.Height;
+                PInvoke.SetWindowPos(hwndNew, IntPtr.Zero, rect.left + step, rect.top + step, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+            StaticReg.CreateWindowPaths.Assign(paths);
+            StaticReg.SkipNextCapture = true;
+            RequestWindowPlace(false, new Point(rect.left, rect.top), hwndNew);
+            Process.Start("explorer.exe", "\"" + (first.StartsWith("::") ? "shell:" + first : first) + "\"");
+            return true;
+        }
+
+        // With the native hook library loaded (off by default), the same case is caught earlier,
+        // before Explorer acts: the page is opened in a window of its own and this one stays.
+        private bool OpenControlPanelApart(IDLWrapper target, SBSP flags) {
+            if(!IsShown || !IsTabBarDocked || (flags & SBSP.NEWBROWSER) != 0) return false;
+            if(target == null || !target.Available || !QTUtility2.IsControlPanelPath(target.Path)) return false;
+            using(IDLWrapper current = ShellBrowser.GetShellPath()) {
+                // A Control Panel window moves between its pages in place.
+                if(!current.Available || QTUtility2.IsControlPanelPath(current.Path)) return false;
+            }
+            OpenWindowApart(target.IDL);
+            return true;
+        }
+
+        // Opens the folder through the shell, not through this window's browser, and after the
+        // message that is being handled now.
+        private void OpenWindowApart(byte[] idl) {
+            if(idl == null) return;
+            BeginInvoke(new MethodInvoker(() => {
+                const int SW_SHOWNORMAL = 1;
+                const int SEE_MASK_IDLIST = 0x00000004;
+                using(IDLWrapper wrapper = new IDLWrapper(idl)) {
+                    if(!wrapper.Available) return;
+                    SHELLEXECUTEINFO sei = new SHELLEXECUTEINFO {
+                        cbSize = Marshal.SizeOf(typeof(SHELLEXECUTEINFO)),
+                        nShow = SW_SHOWNORMAL,
+                        fMask = SEE_MASK_IDLIST,
+                        lpIDList = wrapper.PIDL
+                    };
+                    PInvoke.ShellExecuteEx(ref sei);
+                }
+            }));
+        }
+
+        // Where the window that is opened next on purpose should appear: with its title bar under
+        // the pointer (a tab dropped outside its window) or at a place (a window opened again). It
+        // goes through the registry, as that window may belong to another Explorer process, and is
+        // good for a few seconds.
+        private static void RequestWindowPlace(bool fPointer, Point pt, IntPtr hwndAbove = default(IntPtr)) {
+            StaticReg.NextWindowPlace = DateTime.UtcNow.Ticks + "|" + (fPointer ? "P" : "R") + "|" + pt.X + "|" + pt.Y + "|" + hwndAbove.ToInt64();
+        }
+
+        private void MoveToRequestedPlace() {
+            string place = StaticReg.NextWindowPlace;
+            if(place.Length == 0) return;
+            StaticReg.NextWindowPlace = string.Empty;
+            string[] parts = place.Split('|');
+            long ticks, above;
+            int x, y;
+            if(parts.Length != 5 || !long.TryParse(parts[0], out ticks) || !int.TryParse(parts[2], out x) || !int.TryParse(parts[3], out y) || !long.TryParse(parts[4], out above)) return;
+            if(Math.Abs(DateTime.UtcNow.Ticks - ticks) > TimeSpan.FromSeconds(15).Ticks) return;
+
+            const int SWP_NOSIZE = 1, SWP_NOMOVE = 2, SWP_NOZORDER = 4, SWP_NOACTIVATE = 0x10;
+            RECT rect;
+            if(!PInvoke.IsZoomed(ExplorerHandle) && PInvoke.GetWindowRect(ExplorerHandle, out rect)) {
+                if(parts[1] == "P") {
+                    // The pointer ends up on the title bar, right of its buttons, and the window
+                    // whole on that screen if it fits.
+                    Rectangle area = Screen.FromPoint(new Point(x, y)).WorkingArea;
+                    x = Math.Max(area.Left, Math.Min(x - 250, area.Right - rect.Width));
+                    y = Math.Max(area.Top, Math.Min(y - 15, area.Bottom - rect.Height));
+                }
+                PInvoke.SetWindowPos(ExplorerHandle, IntPtr.Zero, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            }
+
+            IntPtr hwndAbove = (IntPtr)above;
+            if(hwndAbove == IntPtr.Zero || !PInvoke.IsWindow(hwndAbove)) return;
+            // Right below that window, where the window this one stands for was. A window that may
+            // not take the foreground is put behind the windows of other programs and cannot move
+            // up among them; through "always on top" and back it can. Done once Explorer has shown
+            // the window.
+            Timer timer = new Timer { Interval = 500 };
+            timer.Tick += (sender, e) => {
+                timer.Stop();
+                timer.Dispose();
+                if(!PInvoke.IsWindow(hwndAbove) || !PInvoke.IsWindow(ExplorerHandle)) return;
+                IntPtr HWND_TOPMOST = (IntPtr)(-1), HWND_NOTOPMOST = (IntPtr)(-2);
+                foreach(IntPtr hwnd in new IntPtr[] { ExplorerHandle, hwndAbove }) {
+                    PInvoke.SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    PInvoke.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                }
+                if(PInvoke.GetForegroundWindow() == ExplorerHandle) {
+                    PInvoke.SetForegroundWindow(hwndAbove);
+                }
+            };
+            timer.Start();
+        }
+
+        private bool IsOutsideWindow(Point pt) {
+            RECT rect;
+            return PInvoke.GetWindowRect(ExplorerHandle, out rect) && !PInvoke.PtInRect(ref rect, pt);
+        }
+
+        // A tab dropped outside its window: onto another tabbed window, where it becomes a tab, or
+        // anywhere else, where it gets a window of its own at that spot. It goes alone.
+        private void TearOffTab(QTabItem tab, Point pt) {
+            const int GA_ROOT = 2;
+            IntPtr hwndFrame = PInvoke.GetAncestor(PInvoke.WindowFromPoint(pt), GA_ROOT);
+            IntPtr hwndTabBar = hwndFrame == ExplorerHandle ? IntPtr.Zero : InstanceManager.GetTabBarOfWindow(hwndFrame);
+            if(hwndTabBar != IntPtr.Zero) {
+                if(!InstanceManager.SendOpenTab(hwndTabBar, tab.CurrentPath, string.Empty, false)) return;
+                PInvoke.SetForegroundWindow(hwndFrame);
+            }
+            else {
+                RequestWindowPlace(true, pt);
+                using(IDLWrapper wrapper = new IDLWrapper(tab.CurrentIDL)) {
+                    if(!OpenNewWindow(wrapper)) {
+                        StaticReg.NextWindowPlace = string.Empty;
+                        return;
+                    }
+                }
+            }
+            CloseTab(tab);
         }
 
         // todo: This seems like it should go after every new tab creation, no?

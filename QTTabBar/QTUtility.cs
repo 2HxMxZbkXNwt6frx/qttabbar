@@ -994,30 +994,42 @@ namespace QTTabBarLib {
 
         public static void SaveRecentFiles(RegistryKey rkUser) {
             if(rkUser != null) {
-                using(RegistryKey key = rkUser.CreateSubKey("RecentFiles")) {
-                    if(key != null) {
-                        foreach(string str in key.GetValueNames()) {
-                            key.DeleteValue(str, false);
-                        }
-                        for(int i = 0; i < StaticReg.ExecutedPathsList.Count; i++) {
-                            key.SetValue(i.ToString(), StaticReg.ExecutedPathsList[i]);
+                try {
+                    using(RegistryKey key = rkUser.CreateSubKey("RecentFiles")) {
+                        if(key != null) {
+                            foreach(string str in key.GetValueNames()) {
+                                key.DeleteValue(str, false);
+                            }
+                            for(int i = 0; i < StaticReg.ExecutedPathsList.Count; i++) {
+                                key.SetValue(i.ToString(), StaticReg.ExecutedPathsList[i]);
+                            }
                         }
                     }
+                }
+                catch(IOException) {
+                    // As in SaveRecentlyClosed: another Explorer process is rewriting the list.
                 }
             }
         }
 
         public static void SaveRecentlyClosed(RegistryKey rkUser) {
             if(rkUser != null) {
-                using(RegistryKey key = rkUser.CreateSubKey("RecentlyClosed")) {
-                    if(key != null) {
-                        foreach(string str in key.GetValueNames()) {
-                            key.DeleteValue(str, false);
-                        }
-                        for(int i = 0; i < StaticReg.ClosedTabHistoryList.Count; i++) {
-                            key.SetValue(i.ToString(), StaticReg.ClosedTabHistoryList[i]);
+                try {
+                    using(RegistryKey key = rkUser.CreateSubKey("RecentlyClosed")) {
+                        if(key != null) {
+                            foreach(string str in key.GetValueNames()) {
+                                key.DeleteValue(str, false);
+                            }
+                            for(int i = 0; i < StaticReg.ClosedTabHistoryList.Count; i++) {
+                                key.SetValue(i.ToString(), StaticReg.ClosedTabHistoryList[i]);
+                            }
                         }
                     }
+                }
+                catch(IOException) {
+                    // Another Explorer process is rewriting the same list right now (windows of
+                    // several processes closing together). Its copy stands; thrown on, this ended
+                    // the tab bar's own clean-up half way.
                 }
             }
         }

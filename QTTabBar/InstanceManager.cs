@@ -43,6 +43,9 @@ namespace QTTabBarLib {
 
         // WCF duplex client, used for inter-process communication
         private static DuplexClient commClient;
+        // When the last attempt to reach the service failed (0: it did not), and how long that stands.
+        private static volatile int connectFailedTick;
+        private const int ConnectRetryMs = 3000;
         // Whether this is the main process
         private static bool isServer;
 
@@ -350,28 +353,7 @@ namespace QTTabBarLib {
                         errStr += "method name:" + thedel.Method.Name + " daynamic invoke error";
                     }
                     QTUtility2.MakeErrorLog(ex, errStr);
-                    // re initialize 
-                    Initialize();
                 }
-                // remove close
-                finally
-                {
-                    if (!Config.Window.CaptureWeChatSelection) {
-
-                        if (commClient != null && commClient.State != CommunicationState.Closed)
-                        {
-                            try
-                            {
-                                commClient.Close();
-                            }
-                            catch (Exception closeEx)
-                            {
-                                QTUtility2.MakeErrorLog(closeEx, "commClient.Close() failed, try Abort()");
-                                commClient.Abort();
-                            }
-                        }
-                    }
-                } // end of finally
             }
         }
         #endregion
@@ -452,7 +434,7 @@ namespace QTTabBarLib {
                         }
                     }
                 }
-                catch(EndpointNotFoundException e) {
+                catch(Exception e) {
                     // Logged below, not here: logging uses QTUtility, whose static constructor is
                     // what waits for this thread on the first call - both would wait forever (this
                     // process is not the server, e.g. a folder window in a process of its own).
@@ -470,7 +452,18 @@ namespace QTTabBarLib {
                 while(!done) Monitor.Wait(thread);
             }
             if(connectError != null) {
-                QTUtility2.MakeErrorLog(connectError, "Initialize commClient endpoint not found!");
+                connectFailedTick = Environment.TickCount;
+                // No service is the normal case for a folder window in a process of its own while
+                // the shell process has not loaded QTTabBar: not an error.
+                if(connectError is EndpointNotFoundException) {
+                    QTUtility2.log("Initialize commClient: no service at " + address);
+                }
+                else {
+                    QTUtility2.MakeErrorLog(connectError, "Initialize commClient");
+                }
+            }
+            else {
+                connectFailedTick = 0;
             }
         }
 
@@ -479,6 +472,8 @@ namespace QTTabBarLib {
         /// </summary>
         private static ICommService GetChannel() {
             if(commClient.State != CommunicationState.Opened) {
+                int failed = connectFailedTick;
+                if(failed != 0 && unchecked(Environment.TickCount - failed) < ConnectRetryMs) return null;
                 Initialize(true);
             }
             return commClient.State == CommunicationState.Opened ? commClient.Channel : null;
@@ -645,6 +640,68 @@ namespace QTTabBarLib {
                 return false;
             }
         }
+
+        #region Tab bar windows in every Explorer process
+
+        // A folder that another program opens gets a window in an Explorer process of its own
+        // (explorer.exe /factory), and the WCF channel above joins processes only while the shell
+        // process runs the service and every client stays connected. These go through the window
+        // manager instead, which all processes of the session share: a window with a docked tab
+        // bar carries the bar's handle as a window property, and a folder is handed to that bar
+        // with WM_COPYDATA.
+        private const string PropTabBar = "QTTabBar_TabBar";
+        internal static readonly IntPtr OpenTabRequest = (IntPtr)0x5154424F;    // "QTBO"
+
+        public static void MarkTabBarWindow(IntPtr hwndExplorer, IntPtr hwndTabBar) {
+            if(hwndExplorer != IntPtr.Zero) PInvoke.SetProp(hwndExplorer, PropTabBar, hwndTabBar);
+        }
+
+        public static void UnmarkTabBarWindow(IntPtr hwndExplorer) {
+            if(hwndExplorer != IntPtr.Zero) PInvoke.RemoveProp(hwndExplorer, PropTabBar);
+        }
+
+        public static IntPtr GetTabBarOfWindow(IntPtr hwndExplorer) {
+            IntPtr hwndTabBar = hwndExplorer == IntPtr.Zero ? IntPtr.Zero : PInvoke.GetProp(hwndExplorer, PropTabBar);
+            return hwndTabBar != IntPtr.Zero && PInvoke.IsWindow(hwndTabBar) ? hwndTabBar : IntPtr.Zero;
+        }
+
+        // The tab bar of the tabbed window that was active last (EnumWindows goes in Z order),
+        // other than hwndExplorerSelf. A window hidden in the tray counts only without fVisibleOnly.
+        public static IntPtr FindOtherTabBarWindow(IntPtr hwndExplorerSelf, bool fVisibleOnly, out IntPtr hwndExplorer) {
+            IntPtr hwndFound = IntPtr.Zero, hwndFrame = IntPtr.Zero;
+            PInvoke.EnumWindows((hwnd, lParam) => {
+                if(hwnd == hwndExplorerSelf || (fVisibleOnly && !PInvoke.IsWindowVisible(hwnd))) return true;
+                IntPtr hwndTabBar = GetTabBarOfWindow(hwnd);
+                if(hwndTabBar == IntPtr.Zero) return true;
+                hwndFound = hwndTabBar;
+                hwndFrame = hwnd;
+                return false;
+            }, IntPtr.Zero);
+            hwndExplorer = hwndFrame;
+            return hwndFound;
+        }
+
+        // Asks that tab bar to open the folder in a tab and to come to the front. False if it did
+        // not take it (hung, closing, more privileged): the caller keeps the folder.
+        public static bool SendOpenTab(IntPtr hwndTabBar, string path, string nameToSelect, bool fWaitForSelection) {
+            string request = (fWaitForSelection ? "1" : "0") + "\n" + path + "\n" + nameToSelect;
+            using(SafePtr data = new SafePtr(request)) {
+                COPYDATASTRUCT cds = new COPYDATASTRUCT {
+                    dwData = OpenTabRequest,
+                    cbData = (request.Length + 1) * 2,
+                    lpData = data
+                };
+                uint pid;
+                PInvoke.GetWindowThreadProcessId(hwndTabBar, out pid);
+                PInvoke.AllowSetForegroundWindow(pid);
+                const int SMTO_ABORTIFHUNG = 2;
+                IntPtr result;
+                return PInvoke.SendMessageTimeout(hwndTabBar, WM.COPYDATA, IntPtr.Zero, ref cds, SMTO_ABORTIFHUNG, 5000, out result) != IntPtr.Zero
+                        && result == (IntPtr)1;
+            }
+        }
+
+        #endregion
 
         // True when another tab bar in this process lives in the same Explorer frame: then the
         // caller's browser is a native Windows 11 tab of that window, not a window of its own.

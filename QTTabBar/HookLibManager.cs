@@ -93,6 +93,12 @@ namespace QTTabBarLib {
                 {
                     return;
                 }
+                // Switched off and never loaded: nothing to decide, and no WMI query (it ran in
+                // every new Explorer process).
+                if (!Config.Window.AutoHookWindow && hHookLib == IntPtr.Zero)
+                {
+                    return;
+                }
                 
                 ManagementObjectSearcher searcher = new ManagementObjectSearcher("SELECT * FROM Win32_OperatingSystem");
                 string sCPUSerialNumber = "";

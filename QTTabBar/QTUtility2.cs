@@ -1068,6 +1068,13 @@ namespace QTTabBarLib {
         /// <param name="pIDL"></param>
         /// <param name="path"></param>
         /// <returns></returns>
+        // Explorer shows the pages under Control Panel in a process of their own. The old "All
+        // Control Panel Items" folder (::{21EC2020-...}) and what is under it stay in place.
+        public static bool IsControlPanelPath(string path) {
+            return !String.IsNullOrEmpty(path)
+                    && path.StartsWith("::{26EE0668-A00A-44D7-9371-BEB064C98683}", StringComparison.OrdinalIgnoreCase);
+        }
+
         public static bool TargetIsInNoCapture(IntPtr pIDL, string path) {
             if(pIDL != IntPtr.Zero) {
                 path = ShellMethods.GetPath(pIDL);

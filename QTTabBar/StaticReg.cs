@@ -17,6 +17,12 @@ namespace QTTabBarLib {
             set { WriteProp("SkipNextCapture", value ? 1 : 0); }
         }
 
+        // Where the window that is opened next on purpose should appear (QTTabBarClass.RequestWindowPlace).
+        internal static string NextWindowPlace {
+            get { return (string)ReadProp("NextWindowPlace") ?? ""; }
+            set { WriteProp("NextWindowPlace", value); }
+        }
+
         internal static UniqueList<string> ExecutedPathsList = new UniqueList<string>(16); // todo
         internal static UniqueList<string> ClosedTabHistoryList = new UniqueList<string>(16); // todo
 

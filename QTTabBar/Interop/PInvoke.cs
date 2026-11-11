@@ -127,6 +127,16 @@ namespace QTTabBarLib.Interop {
         public static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
         [DllImport("user32.dll")]
         public static extern IntPtr GetProp(IntPtr hWnd, string lpString);
+        [DllImport("user32.dll")]
+        public static extern bool SetProp(IntPtr hWnd, string lpString, IntPtr hData);
+        [DllImport("user32.dll")]
+        public static extern IntPtr RemoveProp(IntPtr hWnd, string lpString);
+        [DllImport("user32.dll")]
+        public static extern bool EnumWindows(EnumWndProc lpEnumFunc, IntPtr lParam);
+        [DllImport("user32.dll")]
+        public static extern IntPtr SendMessageTimeout(IntPtr hWnd, int Msg, IntPtr wParam, ref COPYDATASTRUCT lParam, int fuFlags, int uTimeout, out IntPtr lpdwResult);
+        [DllImport("user32.dll")]
+        public static extern bool AllowSetForegroundWindow(uint dwProcessId);
         [DllImport("kernel32.dll", SetLastError = true)]
         public static extern IntPtr GetStdHandle(int nStdHandle);  
         [DllImport("user32.dll")]
