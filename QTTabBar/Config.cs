@@ -1117,6 +1117,8 @@ namespace QTTabBarLib {
             public bool IncludeRecentFile        { get; set; }
             public bool OneClickMenu             { get; set; }
             public bool EnableAppShortcuts       { get; set; }
+            // A single click on an empty spot of the desktop opens the menu (2048's 1ClickMenuOnDesktop).
+            public bool OneClickMenuOnDesktop    { get; set; }
             public int Width                     { get; set; }
             public int lstSelectedIndex          { get; set; } /* Last selected menu item. */
             public _Desktop() {
@@ -1132,11 +1134,12 @@ namespace QTTabBarLib {
                 DesktopDblClickEnabled = true;
                 LockMenu = false;
                 TitleBackground = false;
-                IncludeApplication = true;
+                IncludeGroup = true;
                 IncludeRecentTab = true;
                 IncludeApplication = true;
                 IncludeRecentFile = true;
                 OneClickMenu = false;
+                OneClickMenuOnDesktop = false;
                 EnableAppShortcuts = true;
                 Width = 80;
 

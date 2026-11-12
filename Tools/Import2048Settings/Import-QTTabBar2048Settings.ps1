@@ -310,7 +310,7 @@ $script:ForkDefaults = @{
     'Desktop.GroupExpanded' = '0'; 'Desktop.RecentTabExpanded' = '0'; 'Desktop.ApplicationExpanded' = '0'; 'Desktop.RecentFileExpanded' = '0'
     'Desktop.TaskBarDblClickEnabled' = '1'; 'Desktop.DesktopDblClickEnabled' = '1'; 'Desktop.LockMenu' = '0'; 'Desktop.TitleBackground' = '0'
     'Desktop.IncludeGroup' = '0'; 'Desktop.IncludeRecentTab' = '1'; 'Desktop.IncludeApplication' = '1'; 'Desktop.IncludeRecentFile' = '1'
-    'Desktop.OneClickMenu' = '0'; 'Desktop.EnableAppShortcuts' = '1'
+    'Desktop.OneClickMenu' = '0'; 'Desktop.EnableAppShortcuts' = '1'; 'Desktop.OneClickMenuOnDesktop' = '0'
 }
 
 # Simple 1:1 boolean options: fork Category.Name <- 2048 section.
@@ -354,7 +354,8 @@ $script:BoolMap = @(
     @('Desktop', 'IncludeRecentTab', 'Desktop_IncludeRecentTab'),
     @('Desktop', 'IncludeApplication', 'Desktop_IncludeApplication'),
     @('Desktop', 'IncludeRecentFile', 'Desktop_IncludeRecentFile'),
-    @('Desktop', 'EnableAppShortcuts', 'Desktop_EnbleApplicationShortcuts')
+    @('Desktop', 'EnableAppShortcuts', 'Desktop_EnbleApplicationShortcuts'),
+    @('Desktop', 'OneClickMenuOnDesktop', 'Desktop_1ClickMenuOnDesktop')
 )
 # 2048 sections that 2048 itself never reads (only created in Config.InitializeSection), so their
 # values carry no user choice: not mapped to CommandBar_LockMenu -> BBar.LockDropDownButtons,

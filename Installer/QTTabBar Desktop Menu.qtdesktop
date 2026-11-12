@@ -1,0 +1,6 @@
+QTTabBar Desktop Menu
+
+Explorer opens this file when you sign in. It starts QTTabBar's desktop menu: double-click an
+empty spot of the desktop to open a group, a recently closed folder, an application or a recent file.
+
+To turn it off, switch "QTTabBar Desktop Menu" off in Task Manager > Startup apps.

@@ -162,7 +162,10 @@ namespace QTTabBarLib {
             }
 
             public void RemoveFromTrayIcon(IntPtr tabBarHandle) {
-                if(trayIcon == null) trayIcon = new TrayIcon();
+                // Every closing tab bar calls this. Without a tray icon no window is in the tray, and
+                // making the icon here could hang the call: the closing window waited the full minute
+                // of the channel's timeout (seen with QTTabBar in the desktop's process).
+                if(trayIcon == null) return;
                 trayIcon.RestoreWindow(tabBarHandle);
             }
 

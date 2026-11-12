@@ -45,6 +45,9 @@ namespace QTTabBarLib {
         // Derived from AssemblyVersion in Properties/AssemblyInfo.cs - the only place
         // the app's own version needs to be edited by hand outside the installer.
         internal static readonly Version CurrentVersion = Assembly.GetExecutingAssembly().GetName().Version;
+        // The name this build is published under, like "1.6.4-26h2.4": upstream's version and
+        // this fork's id (AssemblyInformationalVersion, stamped by Installer\Build-Installer.ps1).
+        internal static readonly string DisplayVersion = GetDisplayVersion();
         internal static readonly string BuildVerion = "build01";
         internal const int FIRST_MOUSE_ONLY_ACTION = 1000;
         internal static readonly string REG_PERSONALIZE = @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize";
@@ -511,6 +514,17 @@ namespace QTTabBarLib {
                 }
             }
             return "noimage";
+        }
+
+        private static string GetDisplayVersion() {
+            try {
+                AssemblyInformationalVersionAttribute attr = (AssemblyInformationalVersionAttribute)Attribute.GetCustomAttribute(
+                        Assembly.GetExecutingAssembly(), typeof(AssemblyInformationalVersionAttribute));
+                if(attr != null && !string.IsNullOrEmpty(attr.InformationalVersion)) return attr.InformationalVersion;
+            }
+            catch {
+            }
+            return CurrentVersion.ToString(3);
         }
 
         public static DateTime GetLinkerTimestamp() {

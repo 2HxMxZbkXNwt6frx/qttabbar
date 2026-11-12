@@ -36,9 +36,14 @@ using System.Runtime.InteropServices;
 [assembly: ComVisible(true)]
 [assembly: Guid("76430850-7643-0850-7643-2bd8835eb6ce")]
 
-// Installer\Build-Installer.ps1 rewrites both of these from its -Version argument,
-// and stamps the same value into Installer.wxs as StrongName. They must stay in this
+// Installer\Build-Installer.ps1 rewrites these from its -Version and -ForkId arguments,
+// and stamps AssemblyVersion into Installer.wxs as StrongName. They must stay in this
 // exact AssemblyVersion("x.y.z.w") shape or the regex silently misses and the MSI ends
 // up registering a strong name the built assembly does not have.
+// AssemblyVersion is upstream's version and stays x.y.z.0 for every build of this fork:
+// COM registration, the GAC and plugins bind to it. The file version carries the fork's
+// build number in its last part, and the informational version is the name a build is
+// published under ("1.6.4-26h2.4": upstream's version, then this fork's id).
 [assembly: AssemblyVersion("1.6.4.0")]
-[assembly: AssemblyFileVersion("1.6.4.0")]
+[assembly: AssemblyFileVersion("1.6.4.4")]
+[assembly: AssemblyInformationalVersion("1.6.4-26h2.4")]

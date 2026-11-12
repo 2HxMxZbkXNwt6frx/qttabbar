@@ -92,6 +92,7 @@ namespace QTTabBarLib {
                                   tsmiOnUserApps,
                                   tsmiOnRecentFile,
                                   tsmiOneClick,
+                                  tsmiOneClickDesktop,
                                   tsmiAppKeys;
 
         private ToolStripMenuItem tsmiExperimental;
@@ -117,6 +118,24 @@ namespace QTTabBarLib {
 
         private bool fCancelClosing;
         private bool fNowMouseHovering;
+
+        // Without a taskbar toolbar (DesktopMenu): the menu has a settings item of its own, and
+        // a hidden window of this thread takes the foreground before the menu opens, so that a
+        // click elsewhere closes it.
+        private bool fHostedWithoutTaskbar;
+        private NativeWindow foregroundHolder;
+        private ToolStripMenuItem tsmiSettings;
+        private ToolStripSeparator tssSettings;
+
+        // Single click on the desktop: where the left button went down on an empty spot.
+        private bool fDesktopClickPending;
+        private Point ptDesktopClick;
+        // A click that closes the menu must not open it again.
+        private volatile bool fMenuShown;
+        private int menuClosedTick;
+
+        // The instance whose hooks serve the desktop; one per process.
+        private static QTDesktopTool desktopHookOwner;
 
 
         // CONSTANTS
@@ -187,6 +206,11 @@ namespace QTTabBarLib {
             contextMenu.ImageList = QTUtility.ImageListGlobal;
             contextMenu.ItemClicked += dropDowns_ItemClicked;
             contextMenu.Closing += contextMenu_Closing;
+            contextMenu.Opened += (sender, e) => fMenuShown = true;
+            contextMenu.Closed += (sender, e) => {
+                fMenuShown = false;
+                menuClosedTick = Environment.TickCount;
+            };
             contextMenu.ReorderFinished += contextMenu_ReorderFinished;
             contextMenu.ItemRightClicked += dropDowns_ItemRightClicked;
             if(!QTUtility.IsXP) {
@@ -264,12 +288,14 @@ namespace QTTabBarLib {
             tsmiOnUserApps = new ToolStripMenuItem();
             tsmiOnRecentFile = new ToolStripMenuItem();
             tsmiOneClick = new ToolStripMenuItem();
+            tsmiOneClickDesktop = new ToolStripMenuItem();
             tsmiAppKeys = new ToolStripMenuItem();
             tsmiOnGroup.Checked = Config.Desktop.IncludeGroup;
             tsmiOnHistory.Checked = Config.Desktop.IncludeRecentTab;
             tsmiOnUserApps.Checked = Config.Desktop.IncludeApplication;
             tsmiOnRecentFile.Checked = Config.Desktop.IncludeRecentFile;
             tsmiOneClick.Checked = Config.Desktop.OneClickMenu;
+            tsmiOneClickDesktop.Checked = Config.Desktop.OneClickMenuOnDesktop;
             tsmiAppKeys.Checked = Config.Desktop.EnableAppShortcuts;
             
             tsmiExperimental = new ToolStripMenuItem(QTUtility.TextResourcesDic["Misc_Strings"][6]);
@@ -280,7 +306,7 @@ namespace QTTabBarLib {
             tsmiExperimental.DropDownOpening += tsmiExperimental_DropDownOpening;
 
             contextMenuForSetting.Items.AddRange(new ToolStripItem[] {
-                    tsmiTaskBar, tsmiDesktop, new ToolStripSeparator(),
+                    tsmiTaskBar, tsmiDesktop, tsmiOneClickDesktop, new ToolStripSeparator(),
                     tsmiOnGroup, tsmiOnHistory, tsmiOnUserApps, tsmiOnRecentFile,
                     new ToolStripSeparator(),
                     tsmiLockItems, tsmiVSTitle, tsmiOneClick, tsmiAppKeys, tsmiExperimental
@@ -324,6 +350,26 @@ namespace QTTabBarLib {
             return 0;
         }
 
+        // Runs the desktop part without a taskbar toolbar, on the calling thread, which pumps
+        // messages afterwards. Not when a toolbar in this process serves the desktop already.
+        internal bool StartWithoutTaskbar() {
+            if(desktopHookOwner != null) return false;
+            fHostedWithoutTaskbar = true;
+            Application.EnableVisualStyles();
+            ReadSetting();
+            InitializeComponent();
+            foregroundHolder = new NativeWindow();
+            foregroundHolder.CreateHandle(new CreateParams { Caption = "QTTabBar desktop menu" });
+            string settingsText = QTUtility.IsJapanese ? "デスクトップ メニューの設定" : "Desktop menu settings";
+            tsmiSettings = new ToolStripMenuItem(settingsText) { DropDown = contextMenuForSetting };
+            tsmiOneClick.Available = false;     // a click on the toolbar, which there is not
+            tssSettings = new ToolStripSeparator();
+            InstallDesktopHook();
+            TitleMenuItem.DrawBackground = tsmiVSTitle.Checked;
+            QTUtility2.log("QTDesktopTool: running without a taskbar toolbar");
+            return true;
+        }
+
         public override void CloseDW(uint dwReserved) {
             // called when the user disables the Desktop Tool
             // this seems not to be called on log off / shut down...
@@ -363,6 +409,11 @@ namespace QTTabBarLib {
             if(shellViewListener != null) {
                 shellViewListener.ReleaseHandle();
                 shellViewListener = null;
+            }
+
+            if(desktopHookOwner == this) {
+                desktopHookOwner = null;
+                DesktopMenu.UnmarkRunning();
             }
 
             base.CloseDW(dwReserved);
@@ -477,17 +528,23 @@ namespace QTTabBarLib {
             const int WH_KEYBOARD = 2;
             const int WH_GETMESSAGE = 3;
 
+            if(desktopHookOwner != null && desktopHookOwner != this) return;
             IntPtr hwndDesktop = GetDesktopHwnd();
             if(timerHooks == null) {
                 if(hwndDesktop == IntPtr.Zero) {
-                    // wait till desktop window is created 
+                    // wait till desktop window is created
                     timerHooks = new Timer();
                     timerHooks.Tick += (sender, args) => {
-                        if(++iHookTimeout > 5) {
+                        if(++iHookTimeout > (fHostedWithoutTaskbar ? 40 : 5)) {
                             timerHooks.Stop();
-                            MessageBox.Show(
-                                QTUtility.TextResourcesDic["ErrorDialogs"][8]
-                            );
+                            if(fHostedWithoutTaskbar) {
+                                QTUtility2.log("QTDesktopTool: no desktop list view found");
+                            }
+                            else {
+                                MessageBox.Show(
+                                    QTUtility.TextResourcesDic["ErrorDialogs"][8]
+                                );
+                            }
                             return;
                         }
                         InstallDesktopHook();
@@ -525,6 +582,8 @@ namespace QTTabBarLib {
                     IntPtr.Zero, threadID_ShellTray);
             hHook_KeyDesktop = PInvoke.SetWindowsHookEx(WH_KEYBOARD, hookProc_Keys_Desktop, IntPtr.Zero,
                     threadID_Desktop);
+            desktopHookOwner = this;
+            DesktopMenu.MarkRunning(hwndThis);
 
             // get IFolderView on the desktop thread...
             // todo: quizo claims this must be done on the desktop thread.  I disagree.  test.
@@ -591,6 +650,8 @@ namespace QTTabBarLib {
         }
 
         private IntPtr CallbackGetMsgProc_Desktop(int nCode, IntPtr wParam, IntPtr lParam) {
+            const int WM_LBUTTONDOWN = 0x0201;
+            const int WM_LBUTTONUP = 0x0202;
             const int WM_LBUTTONDBLCLK = 0x0203;
             //const int WM_MBUTTONUP = 0x0208;
             const int WM_MOUSEWHEEL = 0x020A;
@@ -617,18 +678,37 @@ namespace QTTabBarLib {
                         break;
 
 
+                    case WM_LBUTTONDOWN:
+
+                        // Single click: the button goes down and up on the same empty spot, without
+                        // a modifier key (those select). A drag in between draws a selection rectangle.
+                        fDesktopClickPending = false;
+                        if(msg.hwnd == slvDesktop.Handle && Config.Desktop.OneClickMenuOnDesktop && ModifierKeys == Keys.None &&
+                                !fMenuShown && unchecked(Environment.TickCount - menuClosedTick) > 300 &&
+                                PInvoke.ListView_HitTest(slvDesktop.Handle, msg.lParam) == -1) {
+                            fDesktopClickPending = true;
+                            ptDesktopClick = QTUtility2.PointFromLPARAM(msg.lParam);
+                        }
+                        break;
+
+                    case WM_LBUTTONUP:
+
+                        if(fDesktopClickPending && msg.hwnd == slvDesktop.Handle) {
+                            fDesktopClickPending = false;
+                            Point pt = QTUtility2.PointFromLPARAM(msg.lParam);
+                            Size drag = SystemInformation.DragSize;
+                            if(Math.Abs(pt.X - ptDesktopClick.X) <= drag.Width / 2 && Math.Abs(pt.Y - ptDesktopClick.Y) <= drag.Height / 2) {
+                                ShowMenuFromDesktop(pt);
+                            }
+                        }
+                        break;
+
                     case WM_LBUTTONDBLCLK:
 
-                        if(msg.hwnd == slvDesktop.Handle && Config.Desktop.DesktopDblClickEnabled) {
+                        if(msg.hwnd == slvDesktop.Handle && Config.Desktop.DesktopDblClickEnabled && !Config.Desktop.OneClickMenuOnDesktop) {
                             int index = PInvoke.ListView_HitTest(slvDesktop.Handle, msg.lParam);
                             if(index == -1) {
-                                // do the menu on Taskbar thread.
-                                this.Invoke(() => {
-                                    int x = QTUtility2.GET_X_LPARAM(msg.lParam);
-                                    int y = QTUtility2.GET_Y_LPARAM(msg.lParam);
-                                    PInvoke.SetForegroundWindow(hwndShellTray);
-                                    ShowMenu(new Point(x, y));
-                                });
+                                ShowMenuFromDesktop(QTUtility2.PointFromLPARAM(msg.lParam));
                             }
                         }
                         break;
@@ -662,6 +742,17 @@ namespace QTTabBarLib {
             return PInvoke.CallNextHookEx(hHook_MsgDesktop, nCode, wParam, lParam);
         }
 
+        // Desktop thread. ptClient is in the desktop list view's coordinates.
+        private void ShowMenuFromDesktop(Point ptClient) {
+            Point pt = ptClient;
+            PInvoke.ClientToScreen(slvDesktop.Handle, ref pt);
+            // do the menu on Taskbar thread (or this instance's own thread without a toolbar).
+            this.Invoke(() => {
+                PInvoke.SetForegroundWindow(fHostedWithoutTaskbar ? foregroundHolder.Handle : hwndShellTray);
+                ShowMenu(pt);
+            });
+        }
+
         private IntPtr CallbackGetMsgProc_ShellTrayWnd(int nCode, IntPtr wParam, IntPtr lParam) {
             const int WM_NCLBUTTONDBLCLK = 0x00A3;
             const int WM_MOUSEWHEEL = 0x020A;
@@ -672,7 +763,16 @@ namespace QTTabBarLib {
                 switch(msg.message) {
                     case WM_NCLBUTTONDBLCLK:
                         if(Config.Desktop.TaskBarDblClickEnabled && msg.hwnd == hwndShellTray) {
-                            ShowMenu(MousePosition);
+                            if(fHostedWithoutTaskbar) {
+                                Point pt = MousePosition;
+                                BeginInvoke(new MethodInvoker(() => {
+                                    PInvoke.SetForegroundWindow(foregroundHolder.Handle);
+                                    ShowMenu(pt);
+                                }));
+                            }
+                            else {
+                                ShowMenu(MousePosition);
+                            }
                             Marshal.StructureToPtr(new MSG(), lParam, false);
                         }
                         break;
@@ -1066,6 +1166,7 @@ namespace QTTabBarLib {
             Config.Desktop.IncludeApplication = tsmiOnUserApps.Checked;
             Config.Desktop.IncludeRecentFile = tsmiOnRecentFile.Checked;
             Config.Desktop.OneClickMenu = tsmiOneClick.Checked;
+            Config.Desktop.OneClickMenuOnDesktop = tsmiOneClickDesktop.Checked;
             Config.Desktop.EnableAppShortcuts = tsmiAppKeys.Checked;
             Config.Desktop.Width = Width;
             ConfigManager.WriteConfig(true);
@@ -1119,6 +1220,9 @@ namespace QTTabBarLib {
             else if(e.ClickedItem == tsmiOneClick) {
                 tsmiOneClick.Checked = !tsmiOneClick.Checked;
             }
+            else if(e.ClickedItem == tsmiOneClickDesktop) {
+                tsmiOneClickDesktop.Checked = !tsmiOneClickDesktop.Checked;
+            }
             else if(e.ClickedItem == tsmiAppKeys) {
                 tsmiAppKeys.Checked = !tsmiAppKeys.Checked;
             }
@@ -1134,6 +1238,7 @@ namespace QTTabBarLib {
             tsmiLockItems.Text = ResTaskbar[2];
             tsmiVSTitle.Text = ResTaskbar[3];
             tsmiOneClick.Text = ResTaskbar[4];
+            tsmiOneClickDesktop.Text = QTUtility.IsJapanese ? "デスクトップ (1 クリック)" : "Desktop (one click)";
             tsmiAppKeys.Text = ResTaskbar[5];
 
             string[] titles = QTUtility.TextResourcesDic["TaskBar_Titles"];
@@ -1276,8 +1381,9 @@ namespace QTTabBarLib {
                 OpenGroup(qmi.Text);
             }
             else if(qmi.Genre == MenuGenre.History) {
-                using(IDLWrapper idlw = new IDLWrapper(qmi.IDLData)) {
-                    OpenFolder(idlw);    
+                // MenuUtility.CreateUndoClosedItems gives these a path only.
+                using(IDLWrapper idlw = qmi.IDLData != null ? new IDLWrapper(qmi.IDLData) : new IDLWrapper(qmi.Path)) {
+                    OpenFolder(idlw);
                 }
             }
             else if(qmi.Genre == MenuGenre.Application && qmi.Target == MenuTarget.File) {
@@ -1332,7 +1438,7 @@ namespace QTTabBarLib {
                 // const int COMMANDID_USERCANCEL = 0xfffd;
 
                 using(
-                        IDLWrapper idlw = qmi.Genre == MenuGenre.History
+                        IDLWrapper idlw = qmi.Genre == MenuGenre.History && qmi.IDLData != null
                                 ? new IDLWrapper(qmi.IDLData, false)
                                 : new IDLWrapper(qmi.Path)) {
                     e.HRESULT = iContextMenu2.Open(idlw, pnt, ((DropDownMenuReorderable)sender).Handle, fCanRemove);
@@ -1350,7 +1456,7 @@ namespace QTTabBarLib {
                             lstUndoClosedItems.Remove(qmi);
                         }
                         else if(qmi.Genre == MenuGenre.RecentFile) {
-                            StaticReg.ClosedTabHistoryList.Remove(qmi.Path);
+                            StaticReg.ExecutedPathsList.Remove(qmi.Path);
                             lstRecentFileItems.Remove(qmi);
                         }
                         qmi.Dispose();
@@ -1547,6 +1653,12 @@ namespace QTTabBarLib {
             ddmrUserapps.SuspendLayout();
             ddmrRecentFile.SuspendLayout();
 
+            // Off the end while the lists are put in: they go in after the last title item.
+            if(tsmiSettings != null) {
+                contextMenu.Items.Remove(tssSettings);
+                contextMenu.Items.Remove(tsmiSettings);
+            }
+
             // sync texts
 
             bool[] flags = BuildMenuItems();
@@ -1571,6 +1683,11 @@ namespace QTTabBarLib {
                             break;
                     }
                 }
+            }
+
+            if(tsmiSettings != null) {
+                if(contextMenu.Items.Count > 0) contextMenu.Items.Add(tssSettings);
+                contextMenu.Items.Add(tsmiSettings);
             }
 
             ddmrUserapps.ResumeLayout();
@@ -1879,6 +1996,28 @@ namespace QTTabBarLib {
 
         private static void OpenFolders(List<byte[]> lstIDLs, bool fForceTab = false) {
             if(lstIDLs.Count == 0) return;
+            // As tabs of the tabbed window used last, in whatever Explorer process it is, the way a
+            // folder that another program opens gets there (InstanceManager.SendOpenTab).
+            if((fForceTab || Config.Window.CaptureNewWindows) && ModifierKeys != Keys.Control) {
+                IntPtr hwndFrame;
+                IntPtr hwndTabBar = InstanceManager.FindOtherTabBarWindow(IntPtr.Zero, true, out hwndFrame);
+                if(hwndTabBar != IntPtr.Zero) {
+                    bool sent = false;
+                    foreach(byte[] idl in lstIDLs) {
+                        string path;
+                        using(IDLWrapper idlw = new IDLWrapper(idl)) {
+                            path = idlw.Path;
+                        }
+                        if(!string.IsNullOrEmpty(path) && InstanceManager.SendOpenTab(hwndTabBar, path, null, false)) {
+                            sent = true;
+                        }
+                    }
+                    if(sent) {
+                        PInvoke.SetForegroundWindow(hwndFrame);
+                        return;
+                    }
+                }
+            }
             if((fForceTab || Config.Window.CaptureNewWindows) && InstanceManager.GetTotalInstanceCount() > 0) {
                 InstanceManager.BeginInvokeMain(tabbar => {
                     bool first = true;

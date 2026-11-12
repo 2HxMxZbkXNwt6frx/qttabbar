@@ -15,6 +15,8 @@ Tested on Windows 11 Pro 26H2, build 26300.9711. Other builds may behave differe
 - **One window.** A folder that another program opens becomes a tab in the window you used last, also when Explorer gives it a process of its own. Before, such a folder got a window of its own with all the tabs of your last session in it.
 - **Tabs between windows.** Drag a tab out of its window to give it a window of its own, or drop it on another tabbed window to move it there.
 - **Control Panel.** Explorer replaces a folder window that is sent to a Control Panel page, and its tabs used to go with it. Now the tabs come back in a new window in the same place, and the Control Panel window moves aside.
+- **Desktop menu.** A click on an empty spot of the desktop opens a menu of recently closed folders, recent files, applications and groups, as in 2048. A double-click by default; one click is in the menu's own settings (*Desktop menu settings* at its end), and the 2048 settings converter takes it over. No taskbar toolbar is needed: Explorer starts the menu at sign-in from the Startup folder entry *QTTabBar Desktop Menu*. Folders from the menu open as tabs in the window you used last. The *QTTab Desktop Tool* toolbar of a Windows 10 style taskbar loads again too: the installer had registered it under a class name that doesn't exist.
+- **Version.** Builds of this fork carry upstream's version and this fork's id, like `1.6.4-26h2.4`. Options, About, Programs and Features and the DLL's details show it.
 - **Button images.** Reads QTTabBar 1.x and 2048 image strips.
 - **Japanese UI.** A built-in Japanese language (Options > Language).
 - **Tools.** `QTTabBarDoctor` diagnoses an install, repairs it and exports or imports settings. `Win11ToolbarFix` restores the classic toolbar. `Import-QTTabBar2048Settings` converts 2048 settings. `Tools\Kit` packs an installer and guide for setting up another PC.
@@ -65,16 +67,18 @@ QTTabBar 2048 is a separate closed-source program and isn't part of this project
 - Selecting a tab on a network share that doesn't answer still waits for the Windows timeout (about 5 seconds).
 - The window that comes back after a Control Panel page has the same tabs in the same order, but not their back/forward history. A window with a single tab is replaced by the Control Panel window, as Explorer does on its own.
 - A tab can't be dragged out of a maximized window on a single screen: there is nowhere outside the window to drop it.
+- The desktop menu starts at sign-in. After Explorer is restarted (the installer does that), it comes back when the next tabbed window opens. To turn it off, switch off *QTTabBar Desktop Menu* in Task Manager > Startup apps.
+- A double-click on the taskbar opens the desktop menu only on the taskbar's edge, not on its empty space.
 - Text added by this fork is in English and Japanese only.
 - Some plugin names and descriptions are in Chinese, as upstream wrote them.
 
 ### Building this fork
 
 ```powershell
-.\Installer\Build-Installer.ps1 -Version 1.6.4
+.\Installer\Build-Installer.ps1 -Version 1.6.4 -ForkId 26h2.4
 ```
 
-`-PlatformToolset` and `-WixDir` select a newer VC toolset and a portable WiX. See [Build](#build) below for the requirements.
+This builds `QTTabBar Setup 1.6.4-26h2.4.msi`. `-Version` is upstream's version and `-ForkId` this fork's id, whose last number becomes the fourth part of the file and MSI versions (1.6.4.4). The assembly version stays 1.6.4.0, because COM registration, the GAC and plugins bind to it. `-PlatformToolset` and `-WixDir` select a newer VC toolset and a portable WiX. See [Build](#build) below for the requirements.
 
 ### License and credits
 

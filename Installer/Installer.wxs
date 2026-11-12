@@ -23,8 +23,13 @@
 
     <?define SkuName = "QTTabBar"?>
     <?define RTMProductVersion="1.5.0" ?>
-    <?define ProductVersion="1.6.4" ?> <!-- Change the last number to the svn revision before release -->
-    <?define VersionString="1.6.4 Beta(2026)" ?> <!-- Change to correct version before release, eg, 2019 1.5.0.0 Beta 1 -->
+    <!-- Build-Installer.ps1 stamps these. BaseVersion is upstream's version; ProductVersion adds this
+         fork's build number as a fourth part (Windows Installer compares only the first three, so a
+         newer fork build of the same base still replaces an older one through the Upgrade table);
+         VersionString is the name the build is published under, like 1.6.4-26h2.4. -->
+    <?define BaseVersion="1.6.4" ?>
+    <?define ProductVersion="1.6.4.4" ?>
+    <?define VersionString="1.6.4-26h2.4" ?>
     <?define UpgradeCode="{ec9baff7-58fb-40cb-9f67-1c438a7524a5}"?> <!-- NEVER CHANGE THIS, EVER!! -->
     <!-- Quizo and Paul Accisano and indiff -->
     <?define Manufacturer="indiff"?>
@@ -75,6 +80,13 @@ Language="1033"
 		    <!-- 	The URL for the application's update information. -->
 		    <Property Id="ARPURLINFOABOUT" Value="https://github.com/indiff/qttabbar" />
         <Directory Id="TARGETDIR" Name="SourceDir">
+            <!-- Explorer opens this file at sign-in, which starts the desktop's double-click menu. Users
+                 turn it off in Task Manager's Startup apps. -->
+            <Directory Id="StartupFolder">
+                <Component Id="DesktopMenuStartup" Guid="1fa7a651-db81-4fd4-b488-bf934ebb2a36">
+                    <File Id="DesktopMenuStartupFile" Name="QTTabBar Desktop Menu.qtdesktop" Source="QTTabBar Desktop Menu.qtdesktop" KeyPath="yes" />
+                </Component>
+            </Directory>
             <Directory Id="CommonAppDataFolder">
                 <Directory Id="INSTALLLOCATION" Name="$(var.SkuName)">
                     <!-- Files -->
@@ -226,6 +238,24 @@ Language="1033"
                                 <RegistryValue Value="{B3FFB6A3-3BC5-4D2F-8C49-6432D7174A3E}" Type="string" Action="write" KeyPath="yes"/>
                             </RegistryKey>
                         </Component>
+                        <!-- .qtdesktop: opening one runs DesktopMenuLoader in the process that opens it. Classes keys
+                             other than CLSID are shared by both registry views, so one component per system. -->
+                        <Component Id="DesktopMenuFileType_$(var.arch)" Win64="$(var.win64)" DisableRegistryReflection="$(var.win64)">
+                            <?if $(var.arch) = x64?>
+                                <Condition>VersionNT64</Condition>
+                            <?else?>
+                                <Condition>NOT VersionNT64</Condition>
+                            <?endif?>
+                            <RegistryKey Root="HKCR" Key=".qtdesktop" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
+                                <RegistryValue Value="QTTabBar.DesktopMenu" Type="string" Action="write" KeyPath="yes"/>
+                            </RegistryKey>
+                            <RegistryKey Root="HKCR" Key="QTTabBar.DesktopMenu" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
+                                <RegistryValue Value="QTTabBar Desktop Menu" Type="string" Action="write"/>
+                                <RegistryKey Key="shell\open\command" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
+                                    <RegistryValue Name="DelegateExecute" Value="{8E247F31-752A-443B-8CA3-2CD5AA0B097C}" Type="string" Action="write"/>
+                                </RegistryKey>
+                            </RegistryKey>
+                        </Component>
                         <Component Id="InstallDate_$(var.arch)" Win64="$(var.win64)" DisableRegistryReflection="$(var.win64)">
                             <?if $(var.arch) = x64?>
                                 <Condition>VersionNT64</Condition>
@@ -249,7 +279,7 @@ Language="1033"
                         <!-- COM Objects  Computer\HKEY_CLASSES_ROOT\CLSID\{D2BF470E-ED1C-487F-A777-2BD8835EB6CE}
                         Computer\HKEY_CURRENT_USER\Software\QTTabBar
                         -->
-                        <?foreach compName in QTTabBarClass;QTButtonBar;QTCoTaskBarClass;AutoLoader;ContextMenuOptions;QTCommandBar2;QTCommandBarVertical ?>
+                        <?foreach compName in QTTabBarClass;QTButtonBar;QTCoTaskBarClass;AutoLoader;ContextMenuOptions;QTCommandBar2;QTCommandBarVertical;DesktopMenuLoader ?>
                             <?if $(var.compName) = QTTabBarClass?>
                                 <?define compGUID = {D2BF470E-ED1C-487F-A333-2BD8835EB6CE}?>
                                 <?define compDesc = QTTabBar?>
@@ -271,6 +301,17 @@ Language="1033"
                             <?elseif $(var.compName) = QTCommandBarVertical?>
                                 <?define compGUID = {B29F2C4B-67B6-4ABF-97C4-2E10C4A06FB9}?>
                                 <?define compDesc = QTTab Vertical Command Bar?>
+                            <?elseif $(var.compName) = DesktopMenuLoader?>
+                                <!-- The open verb of .qtdesktop files: loads the desktop's double-click menu (DesktopMenu.cs). -->
+                                <?define compGUID = {8E247F31-752A-443B-8CA3-2CD5AA0B097C}?>
+                                <?define compDesc = QTTabBar Desktop Menu?>
+                            <?endif?>
+                            <!-- The desktop tool's component and ProgId keep their old name; the class is QTDesktopTool
+                                 (the old name pointed at a class that does not exist, so the toolbar never loaded). -->
+                            <?if $(var.compName) = QTCoTaskBarClass?>
+                                <?define compClass = QTDesktopTool?>
+                            <?else?>
+                                <?define compClass = $(var.compName)?>
                             <?endif?>
                             <Component Id="$(var.compName)_$(var.arch)" Win64="$(var.win64)" DisableRegistryReflection="$(var.win64)">
                                 <?if $(var.compName) = QTCoTaskBarClass?>
@@ -297,11 +338,11 @@ Language="1033"
                                     <RegistryValue Name="MenuText" Value="$(var.compDesc)" Type="string" Action="write" />
                                     <RegistryValue Name="HelpText" Value="$(var.compDesc)" Type="string" Action="write" />
                                     <RegistryKey Key="InprocServer32" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
-                                        <RegistryValue Name="Class" Value="QTTabBarLib.$(var.compName)" Type="string" Action="write" />
+                                        <RegistryValue Name="Class" Value="QTTabBarLib.$(var.compClass)" Type="string" Action="write" />
                                         <RegistryValue Name="Assembly" Value="$(var.StrongName)" Type="string" Action="write" />
                                         <RegistryValue Name="RuntimeVersion" Value="v4.0.30319" Type="string" Action="write" />
-                                        <RegistryKey Key="$(var.ProductVersion)" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
-                                            <RegistryValue Name="Class" Value="QTTabBarLib.$(var.compName)" Type="string" Action="write" />
+                                        <RegistryKey Key="$(var.BaseVersion)" ForceCreateOnInstall="yes" ForceDeleteOnUninstall="yes">
+                                            <RegistryValue Name="Class" Value="QTTabBarLib.$(var.compClass)" Type="string" Action="write" />
                                             <RegistryValue Name="Assembly" Value="$(var.StrongName)" Type="string" Action="write" />
                                             <RegistryValue Name="RuntimeVersion" Value="v4.0.30319" Type="string" Action="write" />
                                         </RegistryKey>
@@ -339,6 +380,7 @@ Language="1033"
             <ComponentRef Id="SetHome" />
             <ComponentRef Id="config" />
             <ComponentRef Id="libai" />
+            <ComponentRef Id="DesktopMenuStartup" />
           
           <!-- add by qwop -->
             <?foreach arch in x86;x64 ?>
@@ -348,6 +390,7 @@ Language="1033"
                 <ComponentRef Id="QTCommandBar2Reg_$(var.arch)" />
                 <ComponentRef Id="AutoLoaderReg_$(var.arch)" />
                 <ComponentRef Id="ContextMenuHandlerReg_$(var.arch)" />
+                <ComponentRef Id="DesktopMenuFileType_$(var.arch)" />
                 <ComponentRef Id="InstallDate_$(var.arch)" />
                 <!--<ComponentRef Id="NoCaptureAt_$(var.arch)" />-->
 
@@ -359,6 +402,7 @@ Language="1033"
                 <ComponentRef Id="ContextMenuOptions_$(var.arch)" />
                 <ComponentRef Id="QTCommandBar2_$(var.arch)" />
                 <ComponentRef Id="QTCommandBarVertical_$(var.arch)" />
+                <ComponentRef Id="DesktopMenuLoader_$(var.arch)" />
             <?endforeach?>
         </Feature>
 

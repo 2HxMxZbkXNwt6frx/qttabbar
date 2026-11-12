@@ -112,4 +112,4 @@ vivetool /disable /id:37634385,39145991,36354489
 | 左のツリーの中クリックなどで何が起きているか知りたい | `QTTabBarDoctor.ps1 -Action Watch` を実行してから中クリック |
 | 今の設定を保存したい | `QTTabBarDoctor.ps1 -Action ExportSettings`（デスクトップに .reg を保存） |
 | 旧ツールバーの修正を元に戻したい | 管理者として `Win11ToolbarFix.ps1 -Action Restore` → 再起動 |
-| QTTabBar を外したい | 設定 → アプリ から「QTTabBar 1.6.4 Beta(2026)」をアンインストール |
+| QTTabBar を外したい | 設定 → アプリ から「QTTabBar 1.6.4-26h2.4」のように「QTTabBar」で始まる項目をアンインストール |

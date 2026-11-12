@@ -362,7 +362,8 @@
             'GroupExpanded:bool', 'RecentTabExpanded:bool', 'ApplicationExpanded:bool', 'RecentFileExpanded:bool',
             'TaskBarDblClickEnabled:bool', 'DesktopDblClickEnabled:bool', 'LockMenu:bool', 'TitleBackground:bool',
             'IncludeGroup:bool', 'IncludeRecentTab:bool', 'IncludeApplication:bool', 'IncludeRecentFile:bool',
-            'OneClickMenu:bool', 'EnableAppShortcuts:bool', 'Width:int', 'lstSelectedIndex:int'
+            'OneClickMenu:bool', 'EnableAppShortcuts:bool', 'Width:int', 'lstSelectedIndex:int',
+            'OneClickMenuOnDesktop:bool'
         )
     }
     # Fork enums stored by member name (REG_SZ).

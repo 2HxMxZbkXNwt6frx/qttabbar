@@ -26,19 +26,7 @@ namespace QTTabBarLib {
 
         public override void InitializeConfig() {
             try {
-                // Set the default title and version
-                string str = QTUtility.CurrentVersion.ToString();
-                if (QTUtility.BetaRevision.Major > 0)
-                {
-                    str = str + " Beta " + QTUtility.BetaRevision.Major;
-                }
-                else if (QTUtility.BetaRevision.Minor > 0)
-                {
-                    str = str + " Alpha " + QTUtility.BetaRevision.Minor;
-                }
-
-                
-                lblVersion.Content = "QTTabBar " + str + " " + QTUtility2.MakeVersionString();
+                lblVersion.Content = "QTTabBar " + QTUtility2.MakeVersionString();
                 runSite.Text = Resources_String.SiteURL;
                 hypSite.NavigateUri = new Uri(Resources_String.SiteURL);
                 hypSite.RequestNavigate += (sender, args) => Process.Start(Resources_String.SiteURL);

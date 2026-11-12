@@ -844,22 +844,12 @@ namespace QTTabBarLib {
             return path.Substring(0, 3);
         }
 
+        // "1.6.4-26h2.4", and the build time for a development build.
         public static string MakeVersionString() {
-            // qwop comment  confirm the .NET Framework version.
             if(QTUtility.IS_DEV_VERSION) {
-                return "DevBuild: " + QTUtility.GetLinkerTimestamp() + " (" + Environment.Version + ")";
+                return QTUtility.DisplayVersion + " (" + QTUtility.GetLinkerTimestamp().ToString("yyyy-MM-dd HH:mm") + ")";
             }
-            else {
-                string str = QTUtility.CurrentVersion.ToString();
-                if(QTUtility.BetaRevision.Major > 0) {
-                    str = str + " Beta " + QTUtility.BetaRevision.Major;
-                }
-                else if(QTUtility.BetaRevision.Minor > 0) {
-                    str = str + " Alpha " + QTUtility.BetaRevision.Minor;
-                }
-                return str;
-                /* */
-            } 
+            return QTUtility.DisplayVersion;
         }
 
         public static bool PathEquals(this string str1, string str2) {

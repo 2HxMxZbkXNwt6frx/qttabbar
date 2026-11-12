@@ -4779,6 +4779,8 @@ namespace QTTabBarLib {
                 // Tabs show only in a docked bar: only such a window can take another window's folder.
                 // A Control Panel window cannot: Explorer would move it to another process for it.
                 if(IsTabBarDocked && !fControlPanelWindow) InstanceManager.MarkTabBarWindow(ExplorerHandle, Handle);
+                // The desktop's double-click menu, if Explorer was restarted since sign-in.
+                DesktopMenu.EnsureRunning();
             }
             // Explorer doesn't reopen custom vertical bars in new windows (see QTCommandBarVertical).
             if(!fNowQuitting && Config.CmdBars.VerticalBarVisible && Explorer != null) {

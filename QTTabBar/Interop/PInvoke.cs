@@ -131,6 +131,9 @@ namespace QTTabBarLib.Interop {
         public static extern bool SetProp(IntPtr hWnd, string lpString, IntPtr hData);
         [DllImport("user32.dll")]
         public static extern IntPtr RemoveProp(IntPtr hWnd, string lpString);
+
+        [DllImport("user32.dll")]
+        public static extern IntPtr GetShellWindow();
         [DllImport("user32.dll")]
         public static extern bool EnumWindows(EnumWndProc lpEnumFunc, IntPtr lParam);
         [DllImport("user32.dll")]
